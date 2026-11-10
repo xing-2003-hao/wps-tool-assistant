@@ -5,6 +5,7 @@
  *      不填则默认本机 http://127.0.0.1:3910/admin
  *   2. 本机地址但服务未起 → 自动找 node + server.js 后台拉起
  *   3. 用 Edge/Chrome 的 --app 模式打开（无地址栏，像个桌面软件）
+ *   调试：exe --probe-only  = 只检测地址连通性并写日志，不打开浏览器
  * 注意：源码保持纯 ASCII，中文全部 \u 转义（csc 代码页问题）
  * ============================================================ */
 using System;
@@ -18,7 +19,8 @@ using System.Windows.Forms;
 
 static class AdminLauncher
 {
-    const string DEFAULT_URL = "http://127.0.0.1:3910/admin";
+    /* 默认 = 线上管理台；想连本机开发环境，在 exe 旁放 admin-url.txt 写 http://127.0.0.1:3910/admin */
+    const string DEFAULT_URL = "https://wps-tool-assistant.app.workbuddy.host/admin?sharecode=YT3HRQMGYO";
     const int PORT = 3910;
 
     [STAThread]
@@ -30,7 +32,7 @@ static class AdminLauncher
         Log("start exeDir=" + exeDir + " url=" + url);
         bool isLocal = url.IndexOf("127.0.0.1") >= 0 || url.IndexOf("localhost") >= 0;
 
-        if (isLocal && !Probe(3000))
+        if (isLocal && !Probe(url, 3000))
         {
             Log("local probe failed, starting server");
             string serverJs = FindServer(exeDir);
@@ -48,7 +50,7 @@ static class AdminLauncher
                 return;
             }
             Log("node=" + node + " server=" + serverJs);
-            if (!StartServer(node, serverJs))
+            if (!StartServer(node, serverJs, url))
             {
                 Log("server start timeout");
                 Msg("\u672c\u5730\u670d\u52a1\u542f\u52a8\u5931\u8d25\uff0c\u8bf7\u624b\u52a8\u5728 server \u76ee\u5f55\u6267\u884c node server.js \u67e5\u770b\u62a5\u9519\u3002", true);
@@ -56,14 +58,28 @@ static class AdminLauncher
             }
             Log("server ready");
         }
-        else if (!isLocal && !Probe(3000))
+        else if (!isLocal)
         {
-            Log("remote unreachable");
-            Msg("\u8fde\u4e0d\u4e0a\u7ba1\u7406\u5730\u5740\uff1a\n" + url, true);
-            return;
+            bool reachable = Probe(url, 8000);
+            Log("remote probe " + (reachable ? "OK" : "FAILED"));
+            if (IsProbeOnly()) return;
+            if (!reachable)
+            {
+                /* 网络/代理/防火墙都可能拦，给用户一个「仍然打开」的出口，
+                   别一刀切成死路（浏览器里也许能打开） */
+                DialogResult r = MessageBox.Show(
+                    "\u68c0\u6d4b\u4e0d\u5230\u7ba1\u7406\u5730\u5740\uff08\u53ef\u80fd\u662f\u7f51\u7edc\u3001\u4ee3\u7406\u6216\u9632\u706b\u5899\u95ee\u9898\uff09\uff1a\n" + url +
+                    "\n\n\u662f\u5426\u4ecd\u7136\u7528\u6d4f\u89c8\u5668\u6253\u5f00\u8bd5\u8bd5\uff1f",
+                    "WPS \u5de5\u5177\u52a9\u624b \u00b7 \u7ba1\u7406\u53f0",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (r != DialogResult.Yes) return;
+                Log("user chose to open anyway");
+            }
         }
+        else if (IsProbeOnly()) { return; }
 
         Log("opening window");
+        if (IsProbeOnly()) { Log("probe-only done"); return; }
         OpenAppWindow(url);
         Log("done");
     }
@@ -96,17 +112,42 @@ static class AdminLauncher
         return DEFAULT_URL;
     }
 
-    static bool Probe(int timeoutMs)
+    /* 探测地址是否可达：本机看端口能否连上，远程发一次 GET，有任何 HTTP 响应即算通
+       注意：早先版本这里写死探测 127.0.0.1:3910，导致配了线上地址也报「连不上」 */
+    static bool Probe(string url, int timeoutMs)
     {
-        try
+        for (int attempt = 0; attempt < 2; attempt++)
         {
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + PORT + "/admin");
-            req.Timeout = timeoutMs;
-            req.Proxy = null;
-            using (HttpWebResponse r = (HttpWebResponse)req.GetResponse())
-                return (int)r.StatusCode == 200;
+            try
+            {
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+                req.Timeout = timeoutMs;
+                req.ReadWriteTimeout = timeoutMs;
+                req.Method = "GET";
+                req.UserAgent = "WTA-Admin-Launcher/1.1";
+                req.AllowAutoRedirect = true;
+                req.KeepAlive = false;
+                using (HttpWebResponse r = (HttpWebResponse)req.GetResponse())
+                {
+                    if ((int)r.StatusCode < 500) return true;
+                }
+            }
+            catch (WebException wex)
+            {
+                /* 401/403/404 之类也算网络是通的；只有连不上才继续重试 */
+                if (wex.Response is HttpWebResponse) return true;
+            }
+            catch { }
+            Thread.Sleep(400);
         }
-        catch { return false; }
+        return false;
+    }
+
+    static bool IsProbeOnly()
+    {
+        foreach (string a in Environment.GetCommandLineArgs())
+            if (a == "--probe-only") return true;
+        return false;
     }
 
     /* 在 exe 附近找 server/server.js */
@@ -149,7 +190,7 @@ static class AdminLauncher
     }
 
     /* 后台拉起服务端并等待就绪 */
-    static bool StartServer(string node, string serverJs)
+    static bool StartServer(string node, string serverJs, string url)
     {
         Form splash = new Form();
         splash.FormBorderStyle = FormBorderStyle.None;
@@ -186,7 +227,7 @@ static class AdminLauncher
         {
             Thread.Sleep(500);
             Application.DoEvents();
-            if (Probe(800)) { splash.Close(); return true; }
+            if (Probe(url, 800)) { splash.Close(); return true; }
         }
         splash.Close();
         return false;
