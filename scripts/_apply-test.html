@@ -1,0 +1,64 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>应用按钮回归测试</title>
+<style>body{font-family:Consolas,monospace;font-size:13px}pre{white-space:pre-wrap}</style></head>
+<body>
+<iframe id="fr" src="/panel.html" style="width:380px;height:900px;border:1px solid #ddd"></iframe>
+<pre id="log"></pre>
+<script>
+var logEl = document.getElementById('log');
+function log(s){ logEl.textContent += s + '\n'; }
+
+var inserted = [];
+// 父窗口模拟 WPS 注入：面板 detectHost 会扫描 window.parent
+window.wps = {
+  WpsApplication: function () { return window.__app; }
+};
+window.__app = {
+  ActiveDocument: { Name: '测试文档.docx' },
+  Selection: {
+    Type: 2,
+    Text: '用于测试的原文段落。',
+    InsertAfter: function (t) { inserted.push(t); }
+  }
+};
+
+document.getElementById('fr').onload = function () {
+  var w = this.contentWindow, d = this.contentDocument;
+  setTimeout(function () {
+    try {
+      log('host: ' + w.WTA_HOST().type);
+      log('status: ' + d.getElementById('status').textContent);
+
+      // 假模型：一次性返回文本
+      w.WTA_LLM.chatStream = function (messages, onDelta) {
+        var full = '这是续写生成的结果文本。';
+        try { onDelta(full, full); } catch (e) {}
+        return Promise.resolve(full);
+      };
+
+      // 找「续写」按钮（WRITER_ACTIONS 里 id=continue）
+      var btns = [].slice.call(d.querySelectorAll('#actions button'));
+      log('actions: ' + btns.map(function (b) { return b.textContent.trim(); }).join(' | '));
+      var btn = btns.filter(function (b) { return b.textContent.indexOf('续写') >= 0; })[0];
+      if (!btn) { log('FAIL 找不到续写按钮'); return; }
+      btn.onclick();
+
+      setTimeout(function () {
+        log('生成后 status: ' + d.getElementById('status').textContent);
+        log('结果内容: ' + JSON.stringify(d.getElementById('result').value));
+        var apply = d.getElementById('btn-apply');
+        apply.onclick();
+        log('点击应用后 status: ' + d.getElementById('status').textContent);
+        log('写入文档内容: ' + JSON.stringify(inserted));
+        log(inserted.length && inserted[0].indexOf('续写生成的结果') >= 0 ? 'PASS 应用成功写入文档' : 'FAIL 应用未写入');
+
+        // 再测一次：结果清空 + 无宿主的报错路径
+        d.getElementById('result').value = '';
+        apply.onclick();
+        log('空结果时 status: ' + d.getElementById('status').textContent);
+        log('=== DONE ===');
+      }, 400);
+    } catch (e) { log('TEST ERROR ' + e.message); }
+  }, 1200);
+};
+</script>
+</body></html>

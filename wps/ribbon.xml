@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customUI xmlns="http://schemas.kingsoft/wpsdesigner/customUI/1.0" onload="OnAddinLoad">
+  <ribbon>
+    <tabs>
+      <tab id="wtaTab" label="工具助手">
+        <group id="gPanel" label="助手">
+          <button id="wtaBtnPanel" label="助手面板" size="large" onAction="OnShowPanel" getImage="OnGetImage"/>
+        </group>
+        <group id="gAi" label="智能 AI">
+          <button id="wtaToolAiAssistant" label="AI 助手" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolAiWriter" label="AI 写作" size="large" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gImg" label="图片工具">
+          <button id="wtaToolImgPdf" label="图片转 PDF" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolImgConvert" label="图片压缩" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolImgWm" label="加水印" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolImgDewm" label="去水印" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolImgGrid" label="九宫格" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gPdf" label="PDF 工具">
+          <button id="wtaToolPdfMerge" label="PDF 合并" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfSplit" label="PDF 拆分" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfPage" label="页面管理" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfWm" label="加水印" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfSize" label="尺寸调整" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gPdfConv" label="PDF 转换">
+          <button id="wtaToolWordPdf" label="Word 转 PDF" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfToWord" label="转 Word" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfToExcel" label="转 Excel" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfToPpt" label="转 PPT" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfToMd" label="转 Markdown" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolPdfDewm" label="去水印" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gDoc" label="文档 · 表格">
+          <button id="wtaToolWordReplace" label="批量替换" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolSheetMerge" label="表格合并" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolSheetSplit" label="表格拆分" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolSeatcard" label="座位牌" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gGraph" label="图形生成">
+          <button id="wtaToolDocOutline" label="组织架构图" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolDocMind" label="思维导图" size="large" onAction="OnTool" getImage="OnGetImage"/>
+          <button id="wtaToolDocGrid" label="千字稿纸" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gNet" label="网络">
+          <button id="wtaToolVideoNowm" label="短视频去水印" onAction="OnTool" getImage="OnGetImage"/>
+        </group>
+        <group id="gAbout" label="关于">
+          <button id="wtaBtnAbout" label="关于" onAction="OnAbout" getImage="OnGetImage"/>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

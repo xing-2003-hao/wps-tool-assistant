@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>WPS 工具助手</title>
+  <style>
+    body { font-family: "Microsoft YaHei", sans-serif; font-size: 13px; color: #333; padding: 18px; line-height: 1.7; }
+    h3 { font-size: 15px; margin: 0 0 8px; }
+    code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; }
+    .ok { color: #0f9d58; } .bad { color: #d93025; }
+  </style>
+</head>
+<body>
+  <h3>WPS 工具助手 · 加载项入口已就绪</h3>
+  <p>工具都在顶部 <b>「工具助手」</b> 选项卡里；右侧面板可查看全部功能卡片。</p>
+  <p>宿主检测：<span id="host">检测中…</span></p>
+  <p>资源地址：<code id="href"></code></p>
+  <script src="./tools.js"></script>
+  <script src="./main.js"></script>
+  <script>
+    (function () {
+      var h = document.getElementById("host");
+      var info = [];
+      try { info.push("wps=" + (typeof wps)); } catch (e) { info.push("wps=err"); }
+      try { info.push("et=" + (typeof et)); } catch (e) { info.push("et=err"); }
+      try { info.push("wpp=" + (typeof wpp)); } catch (e) { info.push("wpp=err"); }
+      var hasHost = info.join(",").indexOf("=object") >= 0 || info.join(",").indexOf("=function") >= 0;
+      h.className = hasHost ? "ok" : "bad";
+      h.textContent = info.join("  ");
+      document.getElementById("href").textContent = location.href;
+      try { console.log("[WTA] host:", info.join(" "), "url:", location.href); } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

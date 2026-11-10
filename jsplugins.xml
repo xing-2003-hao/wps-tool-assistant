@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jsplugins>
+	<!-- wpsjs debug 会自动维护本文件；此处为手动注册的参考模板 -->
+	<jsplugin name="wps-tool-assistant" type="wps" url="http://127.0.0.1:3889/"/>
+	<jsplugin name="wps-tool-assistant" type="et" url="http://127.0.0.1:3889/"/>
+	<jsplugin name="wps-tool-assistant" type="wpp" url="http://127.0.0.1:3889/"/>
+</jsplugins>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WPS 工具助手 — WPS 全家桶的效率外挂</title>
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="/icon-256.png" />
+<meta name="theme-color" content="#185fa5" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; color:#2c2c2a; background:#fafaf7; line-height:1.7; }
+  .wrap { max-width:960px; margin:0 auto; padding:0 24px; }
+  header { background:#fff; border-bottom:1px solid #e5e3dc; }
+  header .wrap { display:flex; align-items:center; justify-content:space-between; height:64px; }
+  .logo { display:flex; align-items:center; gap:8px; font-size:17px; font-weight:500; color:#185fa5; }
+  .logo img { width:26px; height:26px; border-radius:7px; display:block; }
+  nav a { color:#5f5e5a; text-decoration:none; margin-left:24px; font-size:14px; }
+  nav a:hover { color:#185fa5; }
+  .hero { text-align:center; padding:72px 0 56px; }
+  .hero h1 { font-size:34px; font-weight:500; line-height:1.3; }
+  .hero h1 b { color:#185fa5; font-weight:500; }
+  .hero p { color:#5f5e5a; font-size:16px; margin-top:14px; }
+  .btn { display:inline-block; padding:12px 32px; border-radius:10px; text-decoration:none; font-size:15px; margin:24px 8px 0; }
+  .btn.primary { background:#185fa5; color:#fff; }
+  .btn.ghost { border:1px solid #b5d4f4; color:#185fa5; background:#fff; }
+  .btn.primary:hover { background:#0c447c; }
+  .btn.ghost:hover { background:#e6f1fb; }
+  .hero .note { font-size:12px; color:#888780; margin-top:12px; }
+  section { padding:48px 0; }
+  section h2 { font-size:22px; font-weight:500; text-align:center; margin-bottom:8px; }
+  section .sub { text-align:center; color:#5f5e5a; font-size:14px; margin-bottom:32px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .card { background:#fff; border:1px solid #e5e3dc; border-radius:12px; padding:22px 20px; }
+  .card h3 { font-size:15px; font-weight:500; margin-bottom:8px; }
+  .card p { font-size:13px; color:#5f5e5a; }
+  .card .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:99px; margin-bottom:10px; }
+  .tag.free { background:#e1f5ee; color:#0f6e56; }
+  .tag.pro { background:#faeeda; color:#854f0b; }
+  .price-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:8px; }
+  .price { background:#fff; border:1px solid #e5e3dc; border-radius:12px; padding:26px 20px; text-align:center; display:flex; flex-direction:column; }
+  .price.best { border-color:#185fa5; border-width:2px; position:relative; }
+  .price.best::after { content:"最受欢迎"; position:absolute; top:-11px; left:50%; transform:translateX(-50%); background:#185fa5; color:#fff; font-size:11px; padding:2px 12px; border-radius:99px; }
+  .price .p { font-size:30px; font-weight:500; color:#185fa5; margin:8px 0 2px; }
+  .price .p small { font-size:13px; color:#888780; font-weight:400; }
+  .price ul { list-style:none; font-size:13px; color:#5f5e5a; text-align:left; margin-top:14px; }
+  .price li { padding:4px 0; }
+  .price li::before { content:"✓ "; color:#1d9e75; }
+  .price .buy { display:block; width:100%; margin-top:auto; padding:10px; border:none; border-radius:9px; background:#185fa5; color:#fff; font-size:14px; font-family:inherit; cursor:pointer; transition:background .15s; }
+  .price .buy:hover { background:#0c447c; }
+  .price .buy.ghost { background:#fff; border:1px solid #b5d4f4; color:#185fa5; }
+  .price .buy.ghost:hover { background:#e6f1fb; }
+
+  /* 购买弹窗 */
+  .mask { position:fixed; inset:0; background:rgba(20,20,18,.5); display:none; align-items:center; justify-content:center; padding:20px; z-index:99; }
+  .mask.on { display:flex; }
+  .modal { position:relative; background:#fff; border-radius:14px; padding:26px 24px 22px; width:100%; max-width:390px; max-height:92vh; overflow:auto; box-shadow:0 16px 48px rgba(0,0,0,.18); }
+  .modal .x { position:absolute; top:8px; right:10px; width:30px; height:30px; border:none; background:none; font-size:22px; line-height:1; color:#b0aea7; cursor:pointer; }
+  .modal .x:hover { color:#5f5e5a; }
+  .mh { text-align:center; margin-bottom:16px; }
+  .mt { font-size:16px; font-weight:500; }
+  .ma { font-size:26px; color:#185fa5; font-weight:500; margin-top:2px; }
+  .ma small { font-size:12px; color:#888780; font-weight:400; }
+  .ptabs { display:flex; gap:8px; margin-bottom:14px; }
+  .pt { flex:1; padding:8px; border:1px solid #e5e3dc; background:#fff; border-radius:8px; font-size:13px; color:#5f5e5a; font-family:inherit; cursor:pointer; }
+  .pt.active { border-color:#185fa5; color:#185fa5; background:#e6f1fb; font-weight:500; }
+  .qrw { text-align:center; }
+  .qrw img { width:216px; height:auto; max-width:72vw; display:block; margin:0 auto; border-radius:10px; background:#fff; }
+  .psteps { margin-top:18px; font-size:13px; color:#444; }
+  .psteps > div { display:flex; gap:8px; align-items:flex-start; margin-bottom:9px; line-height:1.6; }
+  .psteps > div > b { flex:0 0 18px; height:18px; border-radius:50%; background:#e6f1fb; color:#185fa5; font-size:11px; font-weight:500; text-align:center; line-height:18px; margin-top:3px; }
+  .psteps code { background:#f2f4f7; padding:1px 6px; border-radius:4px; font-size:12px; color:#185fa5; }
+  .psteps strong { color:#185fa5; font-weight:500; }
+  .pnote { font-size:11.5px; color:#888780; line-height:1.65; margin-top:12px; padding-top:11px; border-top:1px solid #f0efeb; }
+  .pnote code { background:#f5f6f8; padding:1px 5px; border-radius:4px; color:#5f5e5a; font-size:11px; }
+  .pnote b { color:#185fa5; font-weight:500; }
+  .entbox { display:none; text-align:center; background:#f7f9fb; border:1px dashed #cdddec; border-radius:10px; padding:22px 16px; font-size:13px; color:#444; line-height:1.7; }
+  .entbox b { color:#185fa5; font-weight:500; font-size:15px; display:block; margin-bottom:6px; }
+  ol.steps { max-width:560px; margin:0 auto; }
+  ol.steps li { margin-bottom:14px; font-size:14px; color:#444; }
+  ol.steps b { font-weight:500; }
+  .faq { max-width:680px; margin:0 auto; }
+  .faq .q { background:#fff; border:1px solid #e5e3dc; border-radius:10px; padding:16px 20px; margin-bottom:12px; }
+  .faq b { display:block; font-weight:500; margin-bottom:4px; }
+  .faq p { font-size:13px; color:#5f5e5a; }
+  footer { border-top:1px solid #e5e3dc; padding:28px 0; text-align:center; color:#888780; font-size:12px; }
+  @media (max-width:640px) { .grid,.price-row { grid-template-columns:1fr; } .hero h1{font-size:26px;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo"><img src="/icon-256.png" alt="WPS 工具助手" />WPS 工具助手</div>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#pricing">价格</a>
+      <a href="#howto">激活教程</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero wrap">
+  <h1>WPS 三端通用的 <b>AI 助手 + 30 个离线工具</b></h1>
+  <p>文字 / 表格 / 演示一装全通。润色、续写、翻译、知识库问答；PDF 转换、图片处理、表格合并——<br>离线工具完全免费，文件全程不出你的电脑。</p>
+  <a class="btn primary" href="/download/WPS工具助手-安装启动.exe">下载 Windows 安装包</a>
+  <a class="btn ghost" href="#pricing">查看价格</a>
+  <div class="note">支持 WPS Office 2019 及以上 · Windows 系统 · 安装包约 3MB</div>
+</div>
+
+<section id="features" style="background:#fff;border-top:1px solid #e5e3dc;border-bottom:1px solid #e5e3dc;">
+  <div class="wrap">
+    <h2>免费离线工具（不需要激活）</h2>
+    <p class="sub">全部本地运行，无网络也能用，文件不外传</p>
+    <div class="grid">
+      <div class="card"><span class="tag free">免费</span><h3>PDF 工具箱</h3><p>合并、拆分、页面重排、加水印、去水印、统一尺寸，转 Word / Excel / PPT / Markdown。</p></div>
+      <div class="card"><span class="tag free">免费</span><h3>图片工具</h3><p>格式转换、批量压缩、转 PDF、加水印、九宫格切图、去水印修复。</p></div>
+      <div class="card"><span class="tag free">免费</span><h3>表格工具</h3><p>多表合并、按列拆分、座位牌生成、Word 批量替换、Word 转 PDF。</p></div>
+      <div class="card"><span class="tag free">免费</span><h3>图形生成</h3><p>组织架构图、思维导图、千字稿纸，输入文本一键生成 PNG 插入文档。</p></div>
+      <div class="card"><span class="tag free">免费</span><h3>排版指令</h3><p>「全文改成宋体小四」「标题标红」——自然语言直接改格式，不经过模型。</p></div>
+      <div class="card"><span class="tag free">免费</span><h3>本地优先</h3><p>所有离线功能在浏览器沙箱内完成，产物保存到你自己的下载目录。</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>AI 功能（需要卡密激活）</h2>
+    <p class="sub">一次激活，文字 / 表格 / 演示三端通用</p>
+    <div class="grid">
+      <div class="card"><span class="tag pro">AI</span><h3>写作全家桶</h3><p>选中即润色、纠错、翻译、扩写、缩写、改写语气，结果直接写回文档。</p></div>
+      <div class="card"><span class="tag pro">AI</span><h3>长文处理</h3><p>全文按段落分块依次润色，失败块保留原文；会议纪要、金句提炼一键生成。</p></div>
+      <div class="card"><span class="tag pro">AI</span><h3>知识库问答（RAG）</h3><p>把产品手册、制度文档切块入库，所有 AI 动作自动检索注入相关片段。</p></div>
+      <div class="card"><span class="tag pro">AI</span><h3>表格智能</h3><p>选区数据直接交给 AI：生成公式、解释公式、数据清洗建议，结果写入选区下方。</p></div>
+      <div class="card"><span class="tag pro">AI</span><h3>演示文稿</h3><p>生成大纲、逐页润色、提炼要点，结果一键写入文本框。</p></div>
+      <div class="card"><span class="tag pro">AI</span><h3>指令式操作</h3><p>「删除这段话」「总结全文」——选中文字发指令，直接在文档里生效。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing" style="background:#fff;border-top:1px solid #e5e3dc;border-bottom:1px solid #e5e3dc;">
+  <div class="wrap">
+    <h2>价格</h2>
+    <p class="sub">离线工具永久免费 · AI 功能按卡密订阅 · 每张卡密绑定一台电脑</p>
+    <div class="price-row">
+      <div class="price">
+        <div>月卡</div>
+        <div class="p">¥29<small> / 30 天</small></div>
+        <ul><li>全部 AI 功能</li><li>三端通用</li><li>适合先试试</li></ul>
+        <button class="buy" onclick="openPay('month')">立即购买</button>
+      </div>
+      <div class="price best">
+        <div>年卡</div>
+        <div class="p">¥199<small> / 365 天</small></div>
+        <ul><li>全部 AI 功能</li><li>三端通用</li><li>折合每月 16.6 元</li><li>优先客服支持</li></ul>
+        <button class="buy" onclick="openPay('year')">立即购买</button>
+      </div>
+      <div class="price">
+        <div>企业版</div>
+        <div class="p">面议<small> / 私有化</small></div>
+        <ul><li>内网部署，文档不出企业</li><li>对接企业自有模型</li><li>按需定制行业模板</li></ul>
+        <button class="buy ghost" onclick="openPay('ent')">联系咨询</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="howto">
+  <div class="wrap">
+    <h2>四步开始用</h2>
+    <p class="sub">安装 1 分钟 · 卡密到手后立刻可用</p>
+    <ol class="steps">
+      <li><b>买卡密</b> — 在上面价格区点「立即购买」，扫码付款时备注你的微信号，卖家核对后把卡密发给你。<a href="#pricing" style="color:#185fa5;">去购买</a></li>
+      <li><b>下载安装包</b> — 双击 <b>WPS工具助手-安装启动.exe</b>，它会自动注册到 WPS 并打开右侧面板（需先完全退出 WPS 再双击）。</li>
+      <li><b>用免费功能</b> — 工具页 30 个离线工具立即可用：PDF 合并拆分、图片压缩、表格合并……无需任何配置。</li>
+      <li><b>激活 AI</b> — 到「设置」页底部输入卡密点「激活」，AI 功能即开。也可以在上方填自己的 DeepSeek / 通义 API Key，AI 功能同样可用。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="faq" style="background:#fff;border-top:1px solid #e5e3dc;">
+  <div class="wrap">
+    <h2>常见问题</h2>
+    <p class="sub"></p>
+    <div class="faq">
+      <div class="q"><b>激活后换电脑怎么办？</b><p>每张卡密绑定一台电脑。换机时联系卖家重置绑定即可，重置后原电脑自动失效。</p></div>
+      <div class="q"><b>我的文档会被上传吗？</b><p>离线工具（PDF / 图片 / 表格）全部在本机完成，文件不外传。AI 功能需要把选中的文字发送给大模型接口处理，这是 AI 功能的工作原理。</p></div>
+      <div class="q"><b>服务器挂了 AI 会用不了吗？</b><p>已激活的电脑有 72 小时离线宽限期，服务器短时维护不影响使用。</p></div>
+      <div class="q"><b>支持哪些 WPS 版本？</b><p>WPS Office 2019 及以上（含个人版）的 Windows 版本。macOS 与 Linux 暂不支持。</p></div>
+      <div class="q"><b>付款后多久能收到卡密？</b><p>营业时间 9:00–22:00 内一般 2 小时内发出；非营业时段付款，次日早上统一处理。付款时请在备注里写清你的微信号，卖家核对到账后加你发卡。</p></div>
+      <div class="q"><b>卡密忘了保存怎么办？</b><p>把付款截图和付款时间发给卖家，凭记录可以重新查给你。建议收到后立刻激活，激活记录会绑定在当前电脑上。</p></div>
+      <div class="q"><b>可以试用吗？</b><p>30 个离线工具永久免费即是试用。AI 功能购买月卡体验，不满意不续费即可。</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">WPS 工具助手 · 本工具为独立开发的 WPS 加载项，与金山办公官方无关联 · 问题反馈请联系卖家</div>
+</footer>
+
+<!-- ==================== 购买弹窗 ==================== -->
+<div class="mask" id="payMask">
+  <div class="modal">
+    <button class="x" onclick="closePay()" aria-label="关闭">&times;</button>
+    <div class="mh">
+      <div class="mt" id="payTitle">购买月卡</div>
+      <div class="ma" id="payAmount"></div>
+    </div>
+    <div class="ptabs" id="payTabs">
+      <button class="pt active" data-pay="wechat" onclick="switchPay('wechat')">微信支付</button>
+      <button class="pt" data-pay="alipay" onclick="switchPay('alipay')">支付宝</button>
+    </div>
+    <div class="qrw" id="payQrWrap"><img id="payQr" src="/pay-wechat.jpg" alt="收款二维码" /></div>
+    <div class="entbox" id="payEnt"><b>企业版按需报价</b>加卖家微信说明人数、部署方式与需要的模板，确认方案后再付款。</div>
+    <div class="psteps" id="paySteps"></div>
+    <div class="pnote" id="payNote"></div>
+  </div>
+</div>
+
+<script>
+/* ===== 卖家信息：上线前把 wechat 改成你自己的微信号 ===== */
+var CONTACT = { wechat: '' };   // 例：'wps-helper'；留空则不显示联系入口
+
+var PLANS = {
+  month: { name:'月卡',  price:'¥29',  unit:' / 30 天',    note:'WPS月卡'  },
+  year:  { name:'年卡',  price:'¥199', unit:' / 365 天',   note:'WPS年卡'  },
+  ent:   { name:'企业版', price:'面议',  unit:' / 私有化',   note:'WPS企业版' }
+};
+var curPay = 'wechat', curPlan = 'month';
+
+function $(id) { return document.getElementById(id); }
+
+function switchPay(k) {
+  curPay = k;
+  var tabs = document.querySelectorAll('.pt');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].className = 'pt' + (tabs[i].getAttribute('data-pay') === k ? ' active' : '');
+  }
+  $('payQr').src = k === 'wechat' ? '/pay-wechat.jpg' : '/pay-alipay.jpg';
+}
+
+function openPay(k) {
+  curPlan = PLANS[k] ? k : 'month';
+  var p = PLANS[curPlan];
+  $('payTitle').textContent = (curPlan === 'ent' ? '咨询' : '购买') + p.name;
+  $('payAmount').innerHTML = p.price + '<small>' + p.unit + '</small>';
+
+  var isEnt = curPlan === 'ent';
+  $('payTabs').style.display = isEnt ? 'none' : 'flex';
+  $('payQrWrap').style.display = isEnt ? 'none' : 'block';
+  $('payEnt').style.display = isEnt ? 'block' : 'none';
+
+  if (isEnt) {
+    var hasWx = !!CONTACT.wechat;
+    $('payEnt').innerHTML = hasWx
+      ? '<b>企业版按需报价</b>加卖家微信说明人数、部署方式与需要的模板，确认方案后再付款。'
+      : '<b>企业版按需报价</b>请通过你看到本页的渠道联系卖家，说明人数、部署方式与需要的模板。';
+    $('paySteps').innerHTML =
+      '<div><b>1</b><span>' + (hasWx ? '加卖家微信' : '联系卖家') + '，说明公司人数、是否需要内网私有化</span></div>' +
+      '<div><b>2</b><span>确认部署方式、模板需求与报价</span></div>' +
+      '<div><b>3</b><span>付款后部署开通，企业档模板全部解锁</span></div>';
+    $('payNote').innerHTML = '企业版支持内网部署、对接自有模型。' +
+      (hasWx ? '<br>微信：<b>' + CONTACT.wechat + '</b>' : '');
+  } else {
+    $('paySteps').innerHTML =
+      '<div><b>1</b><span>扫码支付 <strong>' + p.price + '</strong>（微信 / 支付宝均可）</span></div>' +
+      '<div><b>2</b><span>付款时在「转账说明 / 备注」里填<strong>你的微信号</strong>，否则联系不上你</span></div>' +
+      '<div><b>3</b><span>卖家看到到账后加你，<strong>2 小时内</strong>把卡密发给你</span></div>' +
+      '<div><b>4</b><span>打开 WPS 右侧面板 →「设置」→ 底部输入卡密，即开即用</span></div>';
+    $('payNote').innerHTML = '营业时间 9:00–22:00，非营业时段付款次日早上发卡。备注请填 <code>' +
+      p.note + '</code> + 你的微信号，方便对账。' + contactLine('微信');
+  }
+  $('payMask').className = 'mask on';
+  document.body.style.overflow = 'hidden';
+}
+
+function contactLine(label) {
+  if (!CONTACT.wechat) return '<br>付款后 2 小时仍未收到卡密，请通过你看到本页的渠道联系卖家。';
+  return '<br>没收到卡密？加卖家' + label + '：<b>' + CONTACT.wechat + '</b>';
+}
+
+function closePay() {
+  $('payMask').className = 'mask';
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closePay();
+});
+$('payMask').addEventListener('click', function (e) {
+  if (e.target === this) closePay();
+});
+
+/* 支持直接分享购买链接：/?pay=month 或 /?pay=year 或 /?pay=ent */
+(function () {
+  var m = /[?&]pay=(month|year|ent)/.exec(location.search);
+  if (m) openPay(m[1]);
+})();
+</script>
+</body>
+</html>

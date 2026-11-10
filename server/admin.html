@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>卡密管理台</title>
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="/icon-256.png" />
+<meta name="theme-color" content="#185fa5" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; background:#f5f4f0; color:#2c2c2a; padding:24px; }
+  .wrap { max-width:980px; margin:0 auto; }
+  h1 { font-size:20px; font-weight:500; margin-bottom:16px; }
+  .card { background:#fff; border:1px solid #e0ded6; border-radius:12px; padding:20px; margin-bottom:16px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  input, select { padding:8px 10px; border:1px solid #ccc; border-radius:8px; font-size:13px; }
+  button { padding:8px 16px; border:none; border-radius:8px; background:#185fa5; color:#fff; font-size:13px; cursor:pointer; }
+  button.ghost { background:#eef3f8; color:#185fa5; }
+  button.warn { background:#a32d2d; }
+  button.danger { background:#fcebeb; color:#a32d2d; }  button:disabled { opacity:.5; cursor:default; }
+  .tip { font-size:12px; color:#888780; margin-top:8px; }
+  .msg { font-size:13px; margin:10px 0 0; color:#1d7a3e; min-height:18px; }
+  .msg.err { color:#c0392b; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #eeede8; white-space:nowrap; }
+  th { color:#5f5e5a; font-weight:500; background:#fafaf7; }
+  td code { background:#f1f0ea; padding:2px 6px; border-radius:4px; cursor:pointer; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; }
+  .ok { background:#e1f5ee; color:#0f6e56; }
+  .off { background:#f1f0ea; color:#5f5e5a; }
+  .exp { background:#faeeda; color:#854f0b; }
+  .dis { background:#fcebeb; color:#a32d2d; }
+  td .op { margin-right:6px; padding:4px 10px; font-size:12px; }
+  .stat { font-size:12px; color:#888780; margin-left:8px; }
+  .stat.err { color:#c0392b; }
+  .stats { display:flex; gap:10px; flex-wrap:wrap; }
+  .kpi { flex:1 1 120px; background:#fafaf7; border:1px solid #eeede8; border-radius:10px; padding:12px 14px; }
+  .kpi .k { font-size:12px; color:#888780; }
+  .kpi .v { font-size:19px; font-weight:500; color:#2c2c2a; margin-top:4px; }
+  .kpi .v small { font-size:12px; font-weight:400; color:#888780; margin-left:2px; }
+  .kpi.hl .v { color:#185fa5; }
+  .kpi.warn .v { color:#a32d2d; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .chip { font-size:12px; background:#eef3f8; color:#185fa5; border-radius:99px; padding:3px 10px; }
+  .left { font-size:12px; }
+  .left.exp { color:#a32d2d; }
+  .left.soon { color:#854f0b; }
+  .scrollbox { max-height:540px; overflow:auto; }
+  .scrollbox table th { position:sticky; top:0; z-index:1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>WPS 工具助手 · 卡密管理台 <span class="stat" id="me"></span><button id="btn-logout" class="ghost" style="display:none;padding:4px 12px;font-size:12px;margin-left:8px;" onclick="logout()">退出登录</button></h1>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">经营概览</b>
+      <button class="ghost" onclick="refreshStats()">刷新</button>
+    </div>
+    <div class="stats" id="kpis" style="margin-top:12px;">
+      <div class="kpi"><div class="k">今日收入</div><div class="v">—</div></div>
+    </div>
+    <div class="chips" id="chans"></div>
+    <div class="tip">收入来自「生成卡密」时填的单价，以及续费时填的金额。没填单价的老卡不计入。</div>
+  </div>
+
+  <div class="card" id="keyBox">
+    <div class="row">
+      <b style="font-size:13px;">管理员密钥</b>
+      <input id="key" type="password" size="42" placeholder="server/data/admin-key.txt 里的内容" />
+      <button onclick="saveKey()">保存密钥</button>
+      <span class="stat" id="keyState"></span>
+    </div>
+    <div class="tip">密钥在服务器上 server/data/admin-key.txt 文件里（或在环境变量 WTA_ADMIN_KEY）。只保存在你本机浏览器。</div>
+  </div>
+
+  <div class="card">
+    <b style="font-size:13px;">生成卡密</b>
+    <div class="row" style="margin-top:10px;">
+      <label>数量 <input id="count" type="number" value="1" min="1" max="100" style="width:70px;" /></label>
+      <label>有效天数 <input id="days" type="number" value="30" min="1" max="3650" style="width:80px;" /></label>
+      <label>单价 <input id="price" type="number" value="" min="0" step="0.01" placeholder="元" style="width:80px;" /></label>
+      <label>渠道 <input id="channel" type="text" size="10" maxlength="16" placeholder="微信/闲鱼" /></label>
+      <button onclick="gen()">生成</button>
+      <button class="ghost" onclick="copyLast()" id="btn-copy-last" disabled>复制本次全部</button>
+    </div>
+    <div class="msg" id="genMsg"></div>
+    <div class="tip">单价和渠道可不填；填了就会自动记进「经营概览」的收入里，方便月底算账。</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">用户档案（安装/订阅/消费一览）</b>
+      <div class="row">
+        <input id="qu" type="text" size="20" placeholder="搜索用户ID/用户名/卡密" oninput="renderUsers()" />
+        <button class="ghost" onclick="refreshUsers()">刷新</button>
+      </div>
+    </div>
+    <div id="utbl" style="margin-top:12px;overflow-x:auto;">加载中…</div>
+    <div class="msg" id="userMsg"></div>
+  </div>
+
+  <div class="card" id="grantBox" style="display:none;">
+    <b style="font-size:13px;">给用户下发权限（无需卡密，直接开通）</b>
+    <div class="row" style="margin-top:10px;">
+      <label>用户ID <input id="g-uid" type="text" size="18" placeholder="U000123（点用户列表「下发」自动填入）" /></label>
+      <label>档位
+        <select id="g-plan">
+          <option value="pro">pro（标准）</option>
+          <option value="enterprise">enterprise（企业）</option>
+          <option value="trial">trial（试用）</option>
+        </select>
+      </label>
+      <label>天数 <input id="g-days" type="number" value="30" min="1" max="3650" style="width:80px;" /></label>
+      <button onclick="grant()">下发</button>
+      <button class="warn" onclick="revoke()">收回</button>
+    </div>
+    <div class="msg" id="grantMsg"></div>
+    <div class="tip">用户ID 是系统自动分配的编号（U000001 起）。点用户列表里的「下发」会自动填入；用户名由用户自己在面板里设置，你也可以点用户名直接改。</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">卡密列表</b>
+      <div class="row">
+        <input id="q" type="text" size="20" placeholder="搜索卡密/用户ID/用户名" oninput="render()" />
+        <button class="ghost" onclick="clearUnused()">清空未激活</button>
+        <button class="ghost" onclick="refresh()">刷新</button>
+      </div>
+    </div>
+    <div id="tbl" class="scrollbox" style="margin-top:12px;overflow-x:auto;">加载中…</div>
+    <div class="msg" id="listMsg"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">收入明细</b>
+      <span style="display:flex;gap:8px;">
+        <button class="ghost" onclick="askIncome()">+ 记一笔收入</button>
+        <button class="ghost" onclick="refreshOrders()">刷新</button>
+      </span>
+    </div>
+    <div id="otbl" style="margin-top:12px;overflow-x:auto;">加载中…</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">模板中心（客户端「模板」页拉取）</b>
+      <div class="row">
+        <button onclick="editTpl(null)">+ 新建模板</button>
+        <button class="ghost" onclick="refreshTpls()">刷新</button>
+      </div>
+    </div>
+    <div id="ttbl" class="scrollbox" style="margin-top:12px;overflow-x:auto;">加载中…</div>
+    <div class="msg" id="tplMsg"></div>
+    <div class="tip">档位决定谁能用：free = 所有人可见（用来引流），pro = 订阅用户，enterprise = 企业档。正文支持 # 标题、## 小标题、- 列表、| 表格 |，客户端会渲染成 Word。</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">操作日志</b>
+      <div class="row">
+        <select id="evType" onchange="renderEvents()">
+          <option value="">全部事件</option>
+          <option value="activate">激活</option>
+          <option value="reset">重置绑定</option>
+          <option value="disable">停用/恢复</option>
+          <option value="delete">删除卡密</option>
+          <option value="extend">续费</option>
+          <option value="grant">下发权限</option>
+          <option value="revoke">收回权限</option>
+          <option value="rename">改名</option>
+          <option value="register">新用户</option>
+          <option value="gen">生成卡密</option>
+        </select>
+        <button class="ghost" onclick="refreshEvents()">刷新</button>
+      </div>
+    </div>
+    <div id="etbl" class="scrollbox" style="margin-top:12px;overflow-x:auto;">加载中…</div>
+    <div class="msg" id="evMsg"></div>
+  </div>
+
+  <div class="card" id="accCard" style="display:none;">
+    <div class="row" style="justify-content:space-between;">
+      <b style="font-size:13px;">管理员账号（谁能打开这个管理台）</b>
+      <button class="ghost" onclick="refreshAccs()">刷新</button>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <input id="a-user" placeholder="用户名（2-32位）" size="16" />
+      <input id="a-pass" type="password" placeholder="密码（至少 6 位）" size="16" />
+      <select id="a-role">
+        <option value="manager">普通管理（发卡/查账/模板）</option>
+        <option value="owner">超级管理员（含账号管理）</option>
+      </select>
+      <button onclick="addAcc()">添加账号</button>
+    </div>
+    <div class="msg" id="accMsg"></div>
+    <div id="atbl" style="margin-top:12px;">加载中…</div>
+    <div class="tip">给合伙人 / 客服开一个「普通管理」就够：能发卡、查用户、管模板，但看不到也不动得了账号。改别人的密码点「重置密码」。</div>
+  </div>
+
+  <div class="tip" style="text-align:center;color:#b0aea7;margin:6px 0 2px;">管理台 v2026-11-09.1758 · 卡密/用户/收入/模板/日志/多管理员 · 企业版 = 管理员授权</div>
+</div>
+
+<!-- 登录层：远程 / 非本机打开时显示 -->
+<div id="loginMask" style="display:none;position:fixed;inset:0;background:#f5f4f0;z-index:998;display:none;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #e0ded6;border-radius:14px;padding:30px 28px;width:330px;max-width:92%;box-shadow:0 10px 40px rgba(0,0,0,.12);">
+    <div style="font-size:17px;font-weight:500;margin-bottom:4px;">管理台登录</div>
+    <div class="tip" style="margin:0 0 16px;">输入管理员账号。账号由超级管理员在管理台「管理员账号」里创建。</div>
+    <input id="lg-user" placeholder="用户名" style="width:100%;margin-bottom:10px;" />
+    <input id="lg-pass" type="password" placeholder="密码" style="width:100%;margin-bottom:14px;" onkeydown="if(event.key==='Enter')doLogin()" />
+    <button style="width:100%;padding:10px;" onclick="doLogin()">登 录</button>
+    <div class="msg" id="lg-msg"></div>
+  </div>
+</div>
+
+<script>
+var API = location.origin;
+/* 发布平台链接校验码：优先从页面 URL 取，兜底用内置值（平台网关要求每个请求携带） */
+var SHARE_CODE = (location.search.match(/sharecode=([^&]+)/) || [])[1] || 'YT3HRQMGYO';
+function withShare(u) { return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'sharecode=' + SHARE_CODE; }
+var lastCodes = [];
+function $(id) { return document.getElementById(id); }
+function fmt(ts) { if (!ts) return '—'; var d = new Date(ts); return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); }
+function fmtTime(ts) { if (!ts) return '—'; var d = new Date(ts); return fmt(ts) + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2); }
+function money(fen) { var n = (Number(fen) || 0) / 100; return '¥' + (n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)); }
+function daysLeft(ts) { if (!ts) return null; return Math.ceil((ts - Date.now()) / 86400000); }
+
+function saveKey() {
+  var k = $('key').value.trim();
+  if (!k) { $('keyState').textContent = '请填写密钥'; $('keyState').className = 'stat err'; return; }
+  localStorage.setItem('wta.admin.key', k);
+  $('keyState').textContent = '已保存，正在加载…';
+  $('keyState').className = 'stat';
+  refresh();
+  refreshUsers();
+  refreshStats();
+  refreshOrders();
+  refreshEvents();
+  refreshTpls();
+}
+function getKey() { return $('key').value.trim() || localStorage.getItem('wta.admin.key') || ''; }
+
+/* ---------------- 登录身份 ---------------- */
+var TOKKEY = 'wta.admin.token';
+var ME = null;
+function getToken() { return localStorage.getItem(TOKKEY) || ''; }
+/* 两种登录方式都算已认证：账号密码登录（token）或本机密钥 */
+function hasAuth() { return !!getToken() || !!getKey(); }
+
+function authHeaders() {
+  var h = { 'Content-Type': 'application/json' };
+  var t = getToken();
+  if (t) { h['Authorization'] = 'Bearer ' + t; h['X-Admin-Token'] = t; }
+  else h['X-Admin-Key'] = getKey();
+  return h;
+}
+
+function api(path, body, method) {
+  return fetch(withShare(API + path), { method: method || 'POST', headers: authHeaders(), body: body ? JSON.stringify(body) : undefined })
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+    .then(function (r) {
+      if (r.status === 401 && path.indexOf('/api/admin/login') < 0) showLogin('登录已过期，请重新登录');
+      return r;
+    });
+}
+
+function applyIdentity() {
+  if (!ME) { $('me').textContent = ''; $('btn-logout').style.display = 'none'; return; }
+  var label = ME.local ? '本机管理员' : ME.username + (ME.role === 'owner' ? ' · 超管' : ' · 管理');
+  $('me').textContent = '— ' + label;
+  $('btn-logout').style.display = ME.local ? 'none' : 'inline-block';
+  $('accCard').style.display = (ME.role === 'owner') ? 'block' : 'none';
+  $('keyBox').style.display = ME.local ? 'block' : 'none';   // 远程登录的账号不需要碰密钥
+}
+
+function showLogin(msg) {
+  ME = null;
+  $('loginMask').style.display = 'flex';
+  if (msg) showMsg('lg-msg', msg, true);
+}
+function hideLogin() { $('loginMask').style.display = 'none'; showMsg('lg-msg', ''); }
+
+function doLogin() {
+  var u = $('lg-user').value.trim(), p = $('lg-pass').value;
+  if (!u || !p) { showMsg('lg-msg', '请填写用户名和密码', true); return; }
+  showMsg('lg-msg', '登录中…');
+  fetch(withShare(API + '/api/admin/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j.ok) {
+        localStorage.setItem(TOKKEY, j.token);
+        ME = { username: j.username, role: j.role, local: false };
+        applyIdentity();
+        hideLogin();
+        refreshAll();
+      } else showMsg('lg-msg', j.error || '登录失败', true);
+    })
+    .catch(function () { showMsg('lg-msg', '连不上服务器', true); });
+}
+
+function logout() {
+  api('/api/admin/logout').catch(function () { });
+  localStorage.removeItem(TOKKEY);
+  showLogin('已退出');
+}
+
+function verifyIdentity() {
+  return fetch(withShare(API + '/api/admin/account'), { headers: authHeaders() })
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+    .then(function (r) {
+      if (r.status === 200 && r.j.username) { ME = { username: r.j.username, role: r.j.role, local: !!r.j.local }; return true; }
+      if (r.status === 401) { localStorage.removeItem(TOKKEY); localStorage.removeItem('wta.admin.key'); $('key').value = ''; }
+      return false;
+    })
+    .catch(function () { return false; });
+}
+
+function refreshAll() {
+  refresh();
+  refreshUsers();
+  refreshStats();
+  refreshOrders();
+  refreshEvents();
+  refreshTpls();
+  refreshAccs();
+}
+function showMsg(id, text, err) { var el = $(id); el.textContent = text || ''; el.className = 'msg' + (err ? ' err' : ''); }
+
+/* 页面内确认框：内嵌 webview（WPS 面板 / IDE 预览）会屏蔽原生 confirm */
+function ask(text) {
+  return new Promise(function (resolve) {
+    var mask = document.createElement('div');
+    mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;width:320px;max-width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25);font-size:13px;color:#2c2c2a;';
+    box.innerHTML = '<div style="line-height:1.7;margin-bottom:16px;">' + text + '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+      '<button id="_ask_no" style="background:#f1f0ea;color:#5f5e5a;">取消</button>' +
+      '<button id="_ask_yes" class="warn">确定</button></div>';
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    function done(v) { if (mask.parentNode) mask.parentNode.removeChild(mask); resolve(v); }
+    box.querySelector('#_ask_yes').onclick = function () { done(true); };
+    box.querySelector('#_ask_no').onclick = function () { done(false); };
+    mask.onclick = function (e) { if (e.target === mask) done(false); };
+  });
+}
+/* 页面内输入框：用于重置密码等需要填写内容的确认 */
+function askInput(title, placeholder) {
+  return new Promise(function (resolve) {
+    var mask = document.createElement('div');
+    mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;width:320px;max-width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25);font-size:13px;color:#2c2c2a;';
+    box.innerHTML = '<div style="line-height:1.7;margin-bottom:12px;">' + title + '</div>' +
+      '<input id="_ai" style="width:100%;margin-bottom:14px;" placeholder="' + placeholder + '" />' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+      '<button id="_ai_no" style="background:#f1f0ea;color:#5f5e5a;">取消</button>' +
+      '<button id="_ai_yes">确定</button></div>';
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    var inp = box.querySelector('#_ai');
+    setTimeout(function () { inp.focus(); }, 50);
+    function done(v) { if (mask.parentNode) mask.parentNode.removeChild(mask); resolve(v); }
+    box.querySelector('#_ai_yes').onclick = function () { done(inp.value); };
+    box.querySelector('#_ai_no').onclick = function () { done(null); };
+    mask.onclick = function (e) { if (e.target === mask) done(null); };
+    inp.onkeydown = function (e) { if (e.key === 'Enter') done(inp.value); };
+  });
+}
+
+/* 输入框弹窗：resolve 字符串，取消 resolve(null)。不用 window.prompt（内嵌 webview 会屏蔽） */
+function askText(text, def) {
+  return new Promise(function (resolve) {
+    var mask = document.createElement('div');
+    mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;width:340px;max-width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25);font-size:13px;color:#2c2c2a;';
+    box.innerHTML = '<div style="line-height:1.7;margin-bottom:10px;">' + text + '</div>' +
+      '<input id="_ask_input" type="text" maxlength="32" style="width:100%;box-sizing:border-box;margin-bottom:14px;" />' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+      '<button id="_ask_no" style="background:#f1f0ea;color:#5f5e5a;">取消</button>' +
+      '<button id="_ask_yes">保存</button></div>';
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    var inp = box.querySelector('#_ask_input');
+    inp.value = def || '';
+    function done(v) { if (mask.parentNode) mask.parentNode.removeChild(mask); resolve(v); }
+    setTimeout(function () { inp.focus(); inp.select(); }, 30);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') done(inp.value); });
+    box.querySelector('#_ask_yes').onclick = function () { done(inp.value); };
+    box.querySelector('#_ask_no').onclick = function () { done(null); };
+    mask.onclick = function (e) { if (e.target === mask) done(null); };
+  });
+}
+
+function gen() {
+  var n = Math.min(Math.max(Number($('count').value) || 1, 1), 100);
+  $('count').value = n;
+  if (n < 10) return doGen(n);
+  ask('确认一次生成 <b>' + n + '</b> 张卡密？<br>生成后可在下方列表逐张删除。').then(function (ok) { if (ok) doGen(n); });
+}
+function doGen(n) {
+  var price = Number($('price').value) || 0;
+  var channel = $('channel').value.trim();
+  showMsg('genMsg', '生成中…');
+  api('/api/admin/keys', { count: n, days: Number($('days').value) || 30, price: price, channel: channel }).then(function (r) {
+    if (r.j.codes) {
+      lastCodes = r.j.codes;
+      var t = '生成 ' + r.j.generated + ' 张（' + r.j.days + ' 天）';
+      if (price > 0) t += ' · 记收入 ' + money(r.j.generated * price * 100);
+      showMsg('genMsg', t + ' ✓ 见下方列表，点「复制本次全部」发给用户');
+      $('btn-copy-last').disabled = false;
+      refresh();
+      if (price > 0) { refreshStats(); refreshOrders(); }
+    } else showMsg('genMsg', r.j.error || '生成失败', true);
+  }).catch(function () { showMsg('genMsg', '连不上服务器', true); });
+}
+function copyLast() {
+  var t = lastCodes.join('\n');
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { showMsg('genMsg', '已复制 ' + lastCodes.length + ' 张到剪贴板 ✓'); });
+  else { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showMsg('genMsg', '已复制 ✓'); }
+}
+
+var cards = [];
+function refresh() {
+  if (!hasAuth()) { $('keyState').textContent = '未登录'; $('keyState').className = 'stat err'; $('tbl').innerHTML = '请先用账号登录或填管理员密钥'; return; }
+  $('keyState').textContent = '加载中…';
+  $('keyState').className = 'stat';
+  api('/api/admin/keys', null, 'GET').then(function (r) {
+    if (r.status === 401) { $('keyState').textContent = '密钥错误'; $('keyState').className = 'stat err'; $('tbl').innerHTML = '管理员密钥错误，请核对 server/data/admin-key.txt'; return; }
+    $('keyState').textContent = '已连接';
+    cards = r.j.cards || [];
+    render();
+  }).catch(function () { $('keyState').textContent = '连接失败'; $('keyState').className = 'stat err'; $('tbl').innerHTML = '连不上服务器（确认服务端已启动）'; });
+}
+function state(c) {
+  if (c.disabled) return '<span class="tag dis">已停用</span>';
+  if (!c.activatedAt) return '<span class="tag off">未激活</span>';
+  if (c.expiresAt && c.expiresAt < Date.now()) return '<span class="tag exp">已过期</span>';
+  return '<span class="tag ok">有效</span>';
+}
+function render() {
+  var q = ($('q').value || '').toUpperCase();
+  var list = cards.filter(function (c) {
+    if (!q) return true;
+    return c.code.indexOf(q) >= 0
+      || (c.uid || '').toUpperCase().indexOf(q) >= 0
+      || (c.name || '').toUpperCase().indexOf(q) >= 0;
+  });
+  var h = '<table><tr><th>卡密</th><th>时长</th><th>状态</th><th>用户</th><th>激活日</th><th>到期日</th><th>剩余</th><th>最后使用</th><th>操作</th></tr>';
+  list.forEach(function (c) {
+    var d = daysLeft(c.expiresAt);
+    var left = '<span class="left">—</span>';
+    if (c.activatedAt && c.expiresAt) {
+      left = d < 0 ? '<span class="left exp">已过期 ' + (-d) + ' 天</span>'
+        : (d <= 7 ? '<span class="left soon">剩 ' + d + ' 天</span>' : '<span class="left">剩 ' + d + ' 天</span>');
+    }
+    h += '<tr><td><code onclick="copyCode(this)" title="点击复制">' + c.code + '</code></td>'
+      + '<td>' + c.days + '天</td><td>' + state(c) + '</td>'
+      + '<td>' + (c.uid
+        ? '<code title="设备 ' + esc(c.machine) + '">' + esc(c.uid) + '</code> ' + esc(c.name)
+        : '—') + '</td>'
+      + '<td>' + fmt(c.activatedAt) + '</td><td>' + fmt(c.expiresAt) + '</td><td>' + left + '</td><td>' + fmt(c.lastSeen) + '</td>'
+      + '<td>'
+      + '<button class="op ghost" onclick="extendCard(\'' + c.code + '\')">续费</button>'
+      + '<button class="op ghost" onclick="resetCard(\'' + c.code + '\')">重置绑定</button>'
+      + (c.disabled
+        ? '<button class="op ghost" onclick="toggleCard(\'' + c.code + '\',false)">恢复</button>'
+        : '<button class="op warn" onclick="toggleCard(\'' + c.code + '\',true)">停用</button>')
+      + '<button class="op danger" onclick="delCard(\'' + c.code + '\',!!' + (c.activatedAt ? 1 : 0) + ')">删除</button>'
+      + '</td></tr>';
+  });
+  $('tbl').innerHTML = h + '</table>' + (list.length ? '' : '<div class="tip">没有匹配的卡密</div>');
+  showMsg('listMsg', '共 ' + cards.length + ' 张，显示 ' + list.length + ' 张');
+}
+function copyCode(el) {
+  var t = el.textContent;
+  if (navigator.clipboard) navigator.clipboard.writeText(t);
+  else { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+  var old = el.style.background; el.style.background = '#9fe1cb'; setTimeout(function () { el.style.background = old; }, 400);
+}
+function resetCard(code) {
+  ask('重置 <b>' + code + '</b> 的绑定？<br>原设备会立即失效，需重新激活。').then(function (ok) {
+    if (!ok) return;
+    api('/api/admin/keys/reset', { code: code }).then(function (r) { showMsg('listMsg', r.j.ok ? '已重置 ' + code : (r.j.error || '失败'), !r.j.ok); refresh(); });
+  });
+}
+function toggleCard(code, dis) {
+  var doIt = function () {
+    api('/api/admin/keys/disable', { code: code, disabled: dis }).then(function (r) {
+      showMsg('listMsg', r.j.ok ? (dis ? '已停用 ' : '已恢复 ') + code : (r.j.error || '失败'), !r.j.ok);
+      refresh();
+    }).catch(function () { showMsg('listMsg', '连不上服务器', true); });
+  };
+  if (!dis) return doIt();
+  ask('停用 <b>' + code + '</b>？<br>用户端 AI 将立即不可用。').then(function (ok) { if (ok) doIt(); });
+}
+function delCard(code, activated) {
+  var t = '删除卡密 <b>' + code + '</b>？<br>删除后无法恢复。'
+    + (activated ? '<br><span style="color:#a32d2d;">该卡已绑定用户，删除后该用户会立即失去权限。</span>' : '');
+  ask(t).then(function (ok) {
+    if (!ok) return;
+    api('/api/admin/keys/delete', { code: code }).then(function (r) {
+      showMsg('listMsg', r.j.ok ? ('已删除 ' + code) : (r.j.error || '删除失败'), !r.j.ok);
+      refresh();
+      if (r.j.ok) refreshUsers();
+    }).catch(function () { showMsg('listMsg', '连不上服务器', true); });
+  });
+}
+function clearUnused() {
+  var n = cards.filter(function (c) { return !c.activatedAt && !c.disabled; }).length;
+  if (!n) { showMsg('listMsg', '没有未激活的卡密，无需清理', true); return; }
+  ask('清空 <b>' + n + '</b> 张未激活的卡密？<br>只删除还没人用的卡，已激活的不受影响，删除后无法恢复。').then(function (ok) {
+    if (!ok) return;
+    api('/api/admin/keys/delete', { unused: true }).then(function (r) {
+      showMsg('listMsg', r.j.ok ? ('已清空 ' + r.j.deleted + ' 张未激活卡密') : (r.j.error || '清理失败'), !r.j.ok);
+      refresh();
+    }).catch(function () { showMsg('listMsg', '连不上服务器', true); });
+  });
+}
+
+/* ---------------- 经营概览 / 收入 / 日志 ---------------- */
+function refreshStats() {
+  if (!hasAuth()) return;
+  api('/api/admin/stats', null, 'GET').then(function (r) {
+    var ov = r.j.overview, rv = r.j.revenue;
+    if (!ov && !rv) {
+      $('kpis').innerHTML = '<div class="kpi"><div class="k">MySQL 未连接</div><div class="v">—</div></div>';
+      $('chans').innerHTML = '';
+      return;
+    }
+    var items = [
+      { k: '今日收入', v: rv ? money(rv.today) : '—', cls: 'hl' },
+      { k: '本月收入', v: rv ? money(rv.month) : '—' },
+      { k: '累计收入', v: rv ? money(rv.total) : '—' },
+      { k: '活跃用户', v: ov ? ov.active24 : '—', cls: '' },
+      { k: '7 天内到期', v: ov ? ov.exp7 : '—', cls: (ov && ov.exp7 > 0) ? 'warn' : '' }
+    ];
+    $('kpis').innerHTML = items.map(function (x) {
+      return '<div class="kpi ' + (x.cls || '') + '"><div class="k">' + x.k + '</div><div class="v">' + x.v + '</div></div>';
+    }).join('');
+    var ch = (rv && rv.byChannel) || [];
+    $('chans').innerHTML = ch.length
+      ? ch.slice(0, 6).map(function (c) { return '<span class="chip">' + esc(c.channel) + ' ' + money(c.amount) + ' · ' + c.cnt + ' 单</span>'; }).join('')
+      : '<span class="chip">近 30 天还没有带金额的订单</span>';
+  }).catch(function () { $('kpis').innerHTML = '<div class="kpi"><div class="k">连不上服务器</div><div class="v">—</div></div>'; });
+}
+
+var orders = [];
+function refreshOrders() {
+  if (!hasAuth()) return;
+  api('/api/admin/orders?limit=60', null, 'GET').then(function (r) {
+    orders = r.j.orders || [];
+    renderOrders();
+  }).catch(function () { $('otbl').innerHTML = '连不上服务器'; });
+}
+function renderOrders() {
+  if (!orders.length) { $('otbl').innerHTML = '<div class="tip">还没有收入记录。生成卡密时填「单价」就会自动记一笔；收到转账也可以点上方「+ 记一笔收入」手动补录。</div>'; return; }
+  var h = '<table><tr><th>时间</th><th>金额</th><th>类型</th><th>卡密</th><th>用户</th><th>渠道</th><th>备注</th></tr>';
+  var sum = 0;
+  orders.forEach(function (o) {
+    sum += o.amount;
+    var kindTxt = o.kind === 'renew' ? '续费' : (o.kind === 'manual' ? '手工' : '新售');
+    h += '<tr><td>' + fmtTime(o.paidAt) + '</td>'
+      + '<td><b style="color:#1d7a3e;">' + money(o.amount) + '</b></td>'
+      + '<td>' + kindTxt + '</td>'
+      + '<td><code>' + esc(o.code || '—') + '</code></td>'
+      + '<td>' + (o.uid ? esc(o.uid) + ' ' + esc(o.name) : '<span style="color:#b0aea7;">未关联</span>') + '</td>'
+      + '<td>' + esc(o.channel || '—') + '</td>'
+      + '<td>' + esc(o.note || '') + '</td></tr>';
+  });
+  $('otbl').innerHTML = h + '</table><div class="tip">最近 ' + orders.length + ' 笔，合计 ' + money(sum) + '。「未关联」= 卡还没被激活，用户激活后会自动对上号。</div>';
+}
+
+/* 手动记收入弹窗（收款码/转账到账后补录对账） */
+function askIncome() {
+  var mask = document.createElement('div');
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;width:340px;max-width:92%;box-shadow:0 8px 40px rgba(0,0,0,.25);font-size:13px;color:#2c2c2a;';
+  box.innerHTML = '<div style="font-weight:700;margin-bottom:12px;">记一笔收入</div>' +
+    '<div style="color:#8a8880;margin-bottom:12px;line-height:1.6;">用户扫码/转账付款到账后，在这里补录一条，月底对账用。</div>' +
+    '<label style="display:block;margin-bottom:6px;">金额（元）</label>' +
+    '<input id="_in_amt" type="number" min="0" step="0.01" style="width:100%;box-sizing:border-box;margin-bottom:10px;" placeholder="如 49" />' +
+    '<label style="display:block;margin-bottom:6px;">收款方式</label>' +
+    '<select id="_in_ch" style="width:100%;box-sizing:border-box;margin-bottom:10px;"><option>微信</option><option>支付宝</option><option>其他</option></select>' +
+    '<label style="display:block;margin-bottom:6px;">备注（谁付的 / 什么套餐，可空）</label>' +
+    '<input id="_in_note" style="width:100%;box-sizing:border-box;margin-bottom:14px;" placeholder="如 张三 月卡" />' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+    '<button id="_in_no" style="background:#f1f0ea;color:#5f5e5a;">取消</button>' +
+    '<button id="_in_yes">记下</button></div>';
+  mask.appendChild(box);
+  document.body.appendChild(mask);
+  setTimeout(function () { box.querySelector('#_in_amt').focus(); }, 50);
+  box.querySelector('#_in_no').onclick = function () { if (mask.parentNode) mask.parentNode.removeChild(mask); };
+  mask.onclick = function (e) { if (e.target === mask) mask.parentNode.removeChild(mask); };
+  box.querySelector('#_in_yes').onclick = async function () {
+    var amt = parseFloat(box.querySelector('#_in_amt').value);
+    if (!(amt > 0)) { setStatus('先填一个大于 0 的金额', true); return; }
+    try {
+      var r = await api('/api/admin/income', { amount: amt, channel: box.querySelector('#_in_ch').value, note: box.querySelector('#_in_note').value });
+      if (!r.j.ok) { setStatus(r.j.error || '记账失败', true); return; }
+      if (mask.parentNode) mask.parentNode.removeChild(mask);
+      setStatus('已记入 ' + money(amt * 100));
+      refreshOrders(); refreshStats();
+    } catch (e) { setStatus('记账失败：' + e.message, true); }
+  };
+}
+
+var events = [];
+var EV_NAME = {
+  activate: '激活', reset: '重置绑定', disable: '停用/恢复', delete: '删除卡密',
+  extend: '续费', grant: '下发权限', revoke: '收回权限', rename: '改名',
+  register: '新用户', gen: '生成卡密', verify: '校验', income: '手工入账',
+  admin_add: '新增管理员', admin_del: '删除管理员'
+};
+function refreshEvents() {
+  if (!hasAuth()) return;
+  $('etbl').innerHTML = '加载中…';
+  api('/api/admin/events?limit=200', null, 'GET').then(function (r) {
+    events = r.j.events || [];
+    renderEvents();
+  }).catch(function () { $('etbl').innerHTML = '连不上服务器'; });
+}
+function renderEvents() {
+  var t = $('evType').value;
+  var list = events.filter(function (e) { return !t || e.type === t; });
+  if (!list.length) { $('etbl').innerHTML = '<div class="tip">没有匹配的事件</div>'; showMsg('evMsg', ''); return; }
+  var h = '<table><tr><th>时间</th><th>事件</th><th>用户</th><th>详情</th></tr>';
+  list.forEach(function (e) {
+    h += '<tr><td>' + fmtTime(e.ts) + '</td>'
+      + '<td>' + (EV_NAME[e.type] || e.type) + '</td>'
+      + '<td>' + (e.uid ? '<code>' + esc(e.uid) + '</code> ' + esc(e.name) : '—') + '</td>'
+      + '<td style="white-space:normal;max-width:360px;color:#5f5e5a;">' + esc(e.detail) + '</td></tr>';
+  });
+  $('etbl').innerHTML = h + '</table>';
+  showMsg('evMsg', '共 ' + events.length + ' 条，显示 ' + list.length + ' 条（最近 200 条）');
+}
+
+/* 续费弹窗：天数 + 可选收款金额 */
+function extendCard(code) {
+  var mask = document.createElement('div');
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;width:340px;max-width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25);font-size:13px;color:#2c2c2a;';
+  box.innerHTML = '<div style="margin-bottom:12px;">给 <b>' + code + '</b> 续费</div>'
+    + '<div style="color:#5f5e5a;margin-bottom:4px;">续费天数</div>'
+    + '<input id="_ex_days" type="number" value="30" min="1" style="width:100%;box-sizing:border-box;margin-bottom:12px;" />'
+    + '<div style="color:#5f5e5a;margin-bottom:4px;">本次收款（元，可留空）</div>'
+    + '<input id="_ex_amt" type="number" value="" min="0" step="0.01" placeholder="不填只延期，不计收入" style="width:100%;box-sizing:border-box;margin-bottom:16px;" />'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    + '<button id="_ex_no" style="background:#f1f0ea;color:#5f5e5a;">取消</button>'
+    + '<button id="_ex_yes">确定续费</button></div>';
+  mask.appendChild(box);
+  document.body.appendChild(mask);
+  var dEl = box.querySelector('#_ex_days');
+  var aEl = box.querySelector('#_ex_amt');
+  function close() { if (mask.parentNode) mask.parentNode.removeChild(mask); }
+  function submit() {
+    var d = Math.min(Math.max(Number(dEl.value) || 30, 1), 3650);
+    var a = Number(aEl.value) || 0;
+    close();
+    api('/api/admin/keys/extend', { code: code, days: d, amount: a }).then(function (r) {
+      if (r.j.ok) {
+        var msg = '已给 ' + code + ' 续费 ' + d + ' 天';
+        if (!r.j.activated) msg += '（卡还没激活，有效时长已加到卡上）';
+        if (a > 0) msg += '，记收入 ' + money(a * 100);
+        showMsg('listMsg', msg);
+        refresh(); refreshStats(); if (a > 0) refreshOrders(); refreshEvents();
+      } else showMsg('listMsg', r.j.error || '续费失败', true);
+    }).catch(function () { showMsg('listMsg', '连不上服务器', true); });
+  }
+  box.querySelector('#_ex_yes').onclick = submit;
+  box.querySelector('#_ex_no').onclick = close;
+  mask.onclick = function (e) { if (e.target === mask) close(); };
+  dEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  aEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  setTimeout(function () { dEl.focus(); dEl.select(); }, 30);
+}
+/* ---------------- 模板中心 ---------------- */
+var tpls = [];
+function refreshTpls() {
+  if (!hasAuth()) return;
+  api('/api/admin/templates', null, 'GET').then(function (r) {
+    if (r.status === 503) { $('ttbl').innerHTML = '<div class="tip">MySQL 未连接，模板功能不可用</div>'; return; }
+    if (r.status === 401) { $('ttbl').innerHTML = '<div class="tip">管理员密钥错误</div>'; return; }
+    tpls = r.j.templates || [];
+    renderTpls();
+  }).catch(function () { $('ttbl').innerHTML = '连不上服务器'; });
+}
+function renderTpls() {
+  var h = '<table><tr><th>名称</th><th>分类</th><th>档位</th><th>状态</th><th>更新</th><th>操作</th></tr>';
+  tpls.forEach(function (t) {
+    h += '<tr><td><b style="font-weight:500;">' + esc(t.name) + '</b><div style="color:#888780;font-size:11.5px;white-space:normal;max-width:260px;">' + esc(t.summary || '') + '</div></td>'
+      + '<td>' + esc(t.category || '—') + '</td>'
+      + '<td><code>' + esc(t.plan) + '</code></td>'
+      + '<td>' + (t.enabled ? '<span class="tag ok">上架</span>' : '<span class="tag off">下架</span>') + '</td>'
+      + '<td>' + fmt(t.updatedAt) + '</td>'
+      + '<td><button class="op ghost" onclick="editTpl(' + t.id + ')">编辑</button>'
+      + '<button class="op ghost" onclick="toggleTpl(' + t.id + ',' + (!t.enabled) + ')">' + (t.enabled ? '下架' : '上架') + '</button>'
+      + '<button class="op danger" onclick="delTpl(' + t.id + ')">删除</button></td></tr>';
+  });
+  $('ttbl').innerHTML = h + '</table>' + (tpls.length ? '' : '<div class="tip">还没有模板，点右上「新建模板」</div>');
+  showMsg('tplMsg', '共 ' + tpls.length + ' 个模板');
+}
+function editTpl(id) {
+  var t = id ? tpls.filter(function (x) { return x.id === id; })[0] : null;
+  var isNew = !t;
+  if (!t) t = { name: '', category: '行政', plan: 'pro', summary: '', body: '# 标题\n\n## 一、\n\n正文内容' };
+  var mask = document.createElement('div');
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;width:620px;max-width:96%;max-height:92vh;overflow:auto;box-shadow:0 8px 40px rgba(0,0,0,.25);font-size:13px;color:#2c2c2a;';
+  box.innerHTML = '<div style="font-size:14px;margin-bottom:12px;">' + (isNew ? '新建模板' : '编辑模板') + '</div>'
+    + '<div class="row" style="gap:8px;margin-bottom:8px;">'
+    + '<input id="_t_name" placeholder="模板名称" style="flex:1;min-width:150px;" value="' + esc(t.name) + '" />'
+    + '<input id="_t_cat" placeholder="分类" style="width:90px;" value="' + esc(t.category) + '" />'
+    + '<select id="_t_plan"><option value="free">free（所有人）</option><option value="pro">pro（订阅）</option><option value="enterprise">enterprise（企业）</option></select>'
+    + '</div>'
+    + '<input id="_t_sum" placeholder="一句话说明，列表里显示" style="width:100%;box-sizing:border-box;margin-bottom:8px;" value="' + esc(t.summary || '') + '" />'
+    + '<textarea id="_t_body" spellcheck="false" style="width:100%;box-sizing:border-box;height:320px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.65;"></textarea>'
+    + '<div class="tip" style="margin-top:6px;"># 一级标题　## 二级标题　### 三级标题　**加粗**　- 列表　| a | b | 表格</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">'
+    + '<button id="_t_no" style="background:#f1f0ea;color:#5f5e5a;">取消</button>'
+    + '<button id="_t_yes">保存</button></div>';
+  mask.appendChild(box);
+  document.body.appendChild(mask);
+  box.querySelector('#_t_plan').value = t.plan || 'pro';
+  box.querySelector('#_t_body').value = t.body || '';
+  function close() { if (mask.parentNode) mask.parentNode.removeChild(mask); }
+  box.querySelector('#_t_no').onclick = close;
+  mask.onclick = function (e) { if (e.target === mask) close(); };
+  box.querySelector('#_t_yes').onclick = function () {
+    var payload = {
+      name: box.querySelector('#_t_name').value.trim(),
+      category: box.querySelector('#_t_cat').value.trim(),
+      plan: box.querySelector('#_t_plan').value,
+      summary: box.querySelector('#_t_sum').value.trim(),
+      body: box.querySelector('#_t_body').value,
+      enabled: true
+    };
+    if (id) payload.id = id;
+    if (!payload.name) { showMsg('tplMsg', '模板名称不能为空', true); return; }
+    if (!payload.body.trim()) { showMsg('tplMsg', '模板正文不能为空', true); return; }
+    api('/api/admin/templates', payload).then(function (r) {
+      if (r.j.ok) { close(); showMsg('tplMsg', (id ? '已保存 ' : '已新建 ') + payload.name); refreshTpls(); refreshEvents(); }
+      else showMsg('tplMsg', r.j.error || '保存失败', true);
+    }).catch(function () { showMsg('tplMsg', '连不上服务器', true); });
+  };
+}
+function toggleTpl(id, enabled) {
+  api('/api/admin/templates/toggle', { id: id, enabled: enabled }).then(function (r) {
+    showMsg('tplMsg', r.j.ok ? (enabled ? '已上架' : '已下架') : (r.j.error || '失败'), !r.j.ok);
+    refreshTpls();
+  }).catch(function () { showMsg('tplMsg', '连不上服务器', true); });
+}
+function delTpl(id) {
+  var t = tpls.filter(function (x) { return x.id === id; })[0];
+  ask('删除模板 <b>' + esc(t ? t.name : '#' + id) + '</b>？<br>已下载到客户端的还能用，之后列表里就没有了。').then(function (ok) {
+    if (!ok) return;
+    api('/api/admin/templates/delete', { id: id }).then(function (r) {
+      showMsg('tplMsg', r.j.ok ? '已删除' : (r.j.error || '删除失败'), !r.j.ok);
+      refreshTpls();
+    }).catch(function () { showMsg('tplMsg', '连不上服务器', true); });
+  });
+}
+
+/* ---------------- 用户管理 ---------------- */
+var users = [];
+function refreshUsers() {
+  if (!hasAuth()) {
+    $('utbl').innerHTML = '<div class="tip">未登录。请先登录账号，或在上方「管理员密钥」里填好并点「保存密钥」。</div>';
+    $('grantBox').style.display = 'none';
+    return;
+  }
+  $('utbl').innerHTML = '加载中…';
+  api('/api/admin/users', null, 'GET').then(function (r) {
+    if (r.status === 401) { $('utbl').innerHTML = '管理员密钥错误，请核对后重新保存'; return; }
+    if (r.status === 503) { $('utbl').innerHTML = 'MySQL 未连接（' + (r.j.error || '') + '）'; $('grantBox').style.display = 'none'; return; }
+    users = r.j.users || [];
+    $('grantBox').style.display = 'block';
+    renderUsers();
+  }).catch(function () { $('utbl').innerHTML = '连不上服务器'; });
+}
+function planTag(u) {
+  if (u.active) {
+    var hasGrant = u.plan && u.plan !== 'free' && u.planUntil > Date.now();
+    var until = hasGrant ? u.planUntil : (u.licExpires || 0);
+    var label = hasGrant ? u.plan : (u.licPlan || 'pro');
+    var forever = label === 'enterprise' && hasGrant && (u.planUntil - Date.now()) > 15 * 365 * 86400000;
+    if (forever) return '<span class="tag ok">enterprise · 管理员授权</span>';
+    var src = hasGrant ? '' : '<span class="tag off" style="margin-left:4px;">卡密</span>';
+    return '<span class="tag ok">' + label + (until ? '·至' + fmt(until) : '') + '</span>' + src;
+  }
+  return '<span class="tag off">未订阅</span>';
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function jsq(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function renderUsers() {
+  var q = ($('qu').value || '').toUpperCase();
+  var list = users.filter(function (u) {
+    if (!q) return true;
+    return (u.uid || '').toUpperCase().indexOf(q) >= 0
+      || (u.name || '').toUpperCase().indexOf(q) >= 0
+      || (u.licCode || '').toUpperCase().indexOf(q) >= 0;
+  });
+  var totalSpent = users.reduce(function (s, u) { return s + (u.spent || 0); }, 0);
+  var paying = users.filter(function (u) { return (u.spent || 0) > 0; }).length;
+  var h = '<table><tr><th>用户ID</th><th>用户名</th><th>订阅状态</th><th>累计消费</th><th>首次安装</th><th>最近在线</th><th>操作</th></tr>';
+  list.forEach(function (u) {
+    var isEnt = u.plan === 'enterprise' && u.planUntil > Date.now();
+    var consume = (u.spent || 0) > 0
+      ? '<b style="color:#1d7a3e;">' + money(u.spent) + '</b><span style="color:#8a8880;"> · ' + u.orderCnt + ' 单'
+        + (u.lastPaid ? '<br><span style="font-size:11px;color:#b0aea7;">最近 ' + fmt(u.lastPaid) + '</span>' : '') + '</span>'
+      : '<span style="color:#b0aea7;">未消费</span>';
+    h += '<tr><td><code onclick="pickUser(\'' + jsq(u.uid) + '\')" title="点击填入下发框">' + esc(u.uid) + '</code></td>'
+      + '<td><span style="cursor:pointer;border-bottom:1px dashed #bbb;" onclick="renameUser(\'' + jsq(u.uid) + '\',\'' + jsq(u.name) + '\')" title="点击修改用户名">' + esc(u.name) + '</span></td>'
+      + '<td>' + planTag(u) + (u.licCode ? '<br><code style="font-size:11px;">' + esc(u.licCode) + '</code>' : '') + '</td>'
+      + '<td>' + consume + '</td>'
+      + '<td>' + fmt(u.firstSeen) + '</td><td>' + fmt(u.lastSeen) + '</td>'
+      + '<td><button class="op ghost" onclick="pickUser(\'' + jsq(u.uid) + '\')">下发</button>'
+      + (isEnt
+        ? '<button class="op ghost" onclick="entGrant(\'' + jsq(u.uid) + '\',false)">取消企业</button>'
+        : '<button class="op ghost" onclick="entGrant(\'' + jsq(u.uid) + '\',true)">授企业</button>')
+      + '</td></tr>';
+  });
+  $('utbl').innerHTML = h + '</table>'
+    + '<div class="tip">共 ' + users.length + ' 个用户，显示 ' + list.length + ' 个；其中 ' + paying + ' 人付过款，合计 ' + money(totalSpent)
+    + '。用户名点一下可改；订阅状态下面是绑定中的卡密。</div>';
+}
+function pickUser(uid) {
+  $('grantBox').style.display = 'block';
+  $('g-uid').value = uid;
+  $('g-uid').scrollIntoView({ block: 'center' });
+}
+
+/* 企业授权：管理员指定的用户解锁企业模板，长期有效；再点一次取消 */
+function entGrant(uid, on) {
+  var doIt = function () {
+    api('/api/admin/users/ent', { uid: uid, on: on }).then(function (r) {
+      if (r.j.ok) {
+        showMsg('userMsg', on
+          ? ('已给 ' + r.j.uid + '（' + (r.j.name || '') + '）开通企业档 ✓ 企业模板对其全部解锁')
+          : ('已取消 ' + r.j.uid + ' 的企业档'));
+        refreshUsers();
+      } else showMsg('userMsg', r.j.error || '操作失败', true);
+    }).catch(function () { showMsg('userMsg', '连不上服务器', true); });
+  };
+  if (on) {
+    ask('给 <b>' + esc(uid) + '</b> 开通企业档？<br>该用户将解锁全部企业模板，长期有效，直到你手动取消。').then(function (ok) { if (ok) doIt(); });
+  } else doIt();
+}
+
+/* ---------------- 管理员账号管理 ---------------- */
+var accs = [];
+function refreshAccs() {
+  if (!ME || ME.role !== 'owner') return;
+  api('/api/admin/admins', null, 'GET').then(function (r) {
+    if (r.status !== 200) { $('atbl').innerHTML = '<div class="tip">' + esc(r.j.error || '加载失败') + '</div>'; return; }
+    accs = r.j.admins || [];
+    renderAccs();
+  }).catch(function () { $('atbl').innerHTML = '<div class="tip">连不上服务器</div>'; });
+}
+function renderAccs() {
+  var h = '<table><tr><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr>';
+  accs.forEach(function (a) {
+    var me = ME && ME.username === a.username;
+    h += '<tr><td>' + esc(a.username) + (me ? ' <span class="tag off">当前</span>' : '') + '</td>'
+      + '<td>' + (a.role === 'owner' ? '<span class="tag exp">超管</span>' : '<span class="tag off">普通管理</span>') + '</td>'
+      + '<td>' + fmt(a.createdAt) + '</td>'
+      + '<td><button class="op ghost" onclick="resetAccPass(' + a.id + ',\'' + jsq(a.username) + '\')">重置密码</button>'
+      + (me ? '' : '<button class="op danger" onclick="delAcc(' + a.id + ',\'' + jsq(a.username) + '\')">删除</button>')
+      + '</td></tr>';
+  });
+  $('atbl').innerHTML = h + '</table>';
+}
+function addAcc() {
+  var u = $('a-user').value.trim(), p = $('a-pass').value, role = $('a-role').value;
+  api('/api/admin/admins/add', { username: u, password: p, role: role }).then(function (r) {
+    showMsg('accMsg', r.j.ok ? '已添加 ' + u + '（' + (r.j.role === 'owner' ? '超管' : '普通管理') + '）✓' : (r.j.error || '添加失败'), !r.j.ok);
+    if (r.j.ok) { $('a-user').value = ''; $('a-pass').value = ''; refreshAccs(); }
+  }).catch(function () { showMsg('accMsg', '连不上服务器', true); });
+}
+function delAcc(id, name) {
+  ask('删除账号 <b>' + esc(name) + '</b>？该账号会立即无法登录。').then(function (ok) {
+    if (!ok) return;
+    api('/api/admin/admins/del', { id: id }).then(function (r) {
+      showMsg('accMsg', r.j.ok ? '已删除 ' + esc(name) : (r.j.error || '删除失败'), !r.j.ok);
+      refreshAccs();
+    }).catch(function () { showMsg('accMsg', '连不上服务器', true); });
+  });
+}
+function resetAccPass(id, name) {
+  askInput('给 <b>' + esc(name) + '</b> 设置新密码（至少 6 位）：', '新密码').then(function (p) {
+    if (p === null) return;
+    if (!p || p.length < 6) { showMsg('accMsg', '密码至少 6 位', true); return; }
+    api('/api/admin/admins/pass', { id: id, password: p }).then(function (r) {
+      showMsg('accMsg', r.j.ok ? '已重置 ' + esc(name) + ' 的密码 ✓' : (r.j.error || '失败'), !r.j.ok);
+    }).catch(function () { showMsg('accMsg', '连不上服务器', true); });
+  });
+}
+function renameUser(uid, old) {
+  askText('修改 <b>' + esc(uid) + '</b> 的用户名（用户端下次打开面板自动更新）', old || '').then(function (v) {
+    if (v === null) return;
+    var n = (v || '').trim();
+    if (!n || n === old) return;
+    api('/api/admin/users/rename', { uid: uid, name: n }).then(function (r) {
+      showMsg('userMsg', r.j.ok ? ('已改名为 ' + r.j.name) : (r.j.error || '改名失败'), !r.j.ok);
+      refreshUsers();
+    }).catch(function () { showMsg('userMsg', '连不上服务器', true); });
+  });
+}
+function grant() {
+  var id = $('g-uid').value.trim().toUpperCase();
+  if (!id) { showMsg('grantMsg', '请填用户ID（U 开头，可从上方列表点「下发」自动填入）', true); return; }
+  api('/api/admin/users/grant', { uid: id, plan: $('g-plan').value, days: Number($('g-days').value) || 30 }).then(function (r) {
+    showMsg('grantMsg', r.j.ok
+      ? ('已给 ' + r.j.uid + (r.j.name ? '（' + r.j.name + '）' : '') + ' 下发 ' + r.j.plan + ' × ' + r.j.days + ' 天 ✓，到期 ' + fmt(r.j.planUntil))
+      : (r.j.error || '失败'), !r.j.ok);
+    refreshUsers();
+  }).catch(function () { showMsg('grantMsg', '连不上服务器', true); });
+}
+function revoke() {
+  var id = $('g-uid').value.trim().toUpperCase();
+  if (!id) { showMsg('grantMsg', '请填用户ID', true); return; }
+  ask('收回 <b>' + esc(id) + '</b> 的下发权限？').then(function (ok) {
+    if (!ok) return;
+    api('/api/admin/users/revoke', { uid: id }).then(function (r) {
+      showMsg('grantMsg', r.j.ok ? ('已收回 ' + r.j.uid + (r.j.name ? '（' + r.j.name + '）' : '') + ' 的下发权限') : (r.j.error || '失败'), !r.j.ok);
+      refreshUsers();
+    }).catch(function () { showMsg('grantMsg', '连不上服务器', true); });
+  });
+}
+
+/* 本机打开时自动取密钥（服务端只允许 127.0.0.1 访问该接口） */
+function bootstrapKey() {
+  if (getKey()) return Promise.resolve(true);
+  return fetch(withShare('/api/admin/bootstrap'), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (j && j.key) {
+        $('key').value = j.key;
+        localStorage.setItem('wta.admin.key', j.key);
+        return true;
+      }
+      return false;
+    })
+    .catch(function () { return false; });
+}
+
+(function init() {
+  var k = localStorage.getItem('wta.admin.key');
+  if (k) $('key').value = k;
+  /* ?login=1 强制显示登录层（调试用） */
+  if (/[?&]login=1/.test(location.search)) { showLogin(); return; }
+  bootstrapKey().then(function () {
+    /* 本机密钥 或 已登录 token，二者验证其一通过即可进 */
+    verifyIdentity().then(function (ok) {
+      if (ok) { applyIdentity(); refreshAll(); }
+      else showLogin();
+    });
+  });
+})();
+</script>
+</body>
+</html>

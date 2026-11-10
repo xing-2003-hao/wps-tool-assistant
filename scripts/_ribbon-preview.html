@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+  body { margin:0; background:#f3f4f6; font-family:"Microsoft YaHei",sans-serif; }
+  .tabbar { display:flex; gap:22px; padding:6px 14px 0; background:#fff; font-size:12px; color:#555; border-bottom:1px solid #e3e5e8; }
+  .tabbar b { color:#c0392b; border-bottom:2px solid #c0392b; padding-bottom:5px; }
+  .ribbon { display:flex; background:#fff; border-bottom:1px solid #dfe1e4; padding:6px 8px 2px; }
+  .grp { display:flex; flex-direction:column; justify-content:space-between; padding:0 10px; border-right:1px solid #ebedef; }
+  .grp .btns { display:flex; align-items:flex-start; gap:4px; }
+  .grp .lbl { font-size:10.5px; color:#8b9096; text-align:center; padding:2px 0 3px; }
+  .b { display:flex; flex-direction:column; align-items:center; width:56px; padding:3px 2px 2px; border-radius:4px; }
+  .b svg, .b img { width:30px; height:30px; }
+  .b span { font-size:10.5px; color:#3c4043; margin-top:2px; text-align:center; line-height:1.15; }
+  .b.sm { width:auto; flex-direction:row; gap:5px; padding:3px 6px; }
+  .b.sm svg, .b.sm img { width:16px; height:16px; }
+  .b.sm span { margin:0; white-space:nowrap; }
+  .rows { display:flex; flex-direction:column; gap:1px; }
+</style></head><body>
+<div class="tabbar"><b>工具助手</b><span>开始</span><span>插入</span><span>页面</span><span>引用</span><span>审阅</span><span>视图</span></div>
+<div class="ribbon" id="rib"></div>
+<script>
+var G = [
+  ['助手', [['ic-panel','助手面板',1]]],
+  ['智能 AI', [['ic-ai','AI 助手',1],['ic-ai-write','AI 写作',1]]],
+  ['图片工具', [['ic-img-pdf','图片转 PDF',1],['ic-img-convert','图片压缩',1],['ic-img-wm','加水印',0],['ic-img-dewm','去水印',0],['ic-img-grid','九宫格',0]]],
+  ['PDF 工具', [['ic-pdf-merge','PDF 合并',1],['ic-pdf-split','PDF 拆分',1],['ic-pdf-page','页面管理',0],['ic-pdf-wm','加水印',0],['ic-pdf-size','尺寸调整',0]]],
+  ['PDF 转换', [['ic-pdf-word','转 Word',1],['ic-pdf-excel','转 Excel',1],['ic-pdf-ppt','转 PPT',0],['ic-pdf-md','转 Markdown',0],['ic-pdf-dewm','去水印',0]]],
+  ['文档 · 表格', [['ic-word-replace','批量替换',1],['ic-sheet-merge','表格合并',1],['ic-sheet-split','表格拆分',0],['ic-seatcard','座位牌',0]]],
+  ['图形生成', [['ic-doc-outline','组织架构图',1],['ic-doc-mind','思维导图',1],['ic-doc-grid','千字稿纸',0]]],
+  ['网络', [['ic-video-dewm','短视频去水印',0]]],
+  ['关于', [['ic-about','关于',0]]]
+];
+var h = '';
+G.forEach(function (g) {
+  var larges = g[1].filter(function (b) { return b[2]; });
+  var smalls = g[1].filter(function (b) { return !b[2]; });
+  h += '<div class="grp"><div class="btns">';
+  larges.forEach(function (b) { h += '<div class="b"><img src="/images/'+b[0]+'.png"><span>'+b[1]+'</span></div>'; });
+  if (smalls.length) {
+    h += '<div class="rows">';
+    smalls.forEach(function (b) { h += '<div class="b sm"><img src="/images/'+b[0]+'.png"><span>'+b[1]+'</span></div>'; });
+    h += '</div>';
+  }
+  h += '</div><div class="lbl">' + g[0] + '</div></div>';
+});
+document.getElementById('rib').innerHTML = h;
+</script></body></html>

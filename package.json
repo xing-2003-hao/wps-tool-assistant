@@ -1,0 +1,21 @@
+{
+  "name": "wps-tool-assistant",
+  "version": "0.1.0",
+  "description": "WPS 工具助手：JS 加载项做壳 + LLM 做脑 + JSA 宏工具箱做兜底",
+  "scripts": {
+    "debug": "wpsjs debug",
+    "build": "wpsjs build",
+    "build:exe": "wpsjs build --exe",
+    "sync": "node scripts/sync.js",
+    "icons": "node scripts/gen-icons.js",
+    "appicon": "powershell -ExecutionPolicy Bypass -File scripts/make-icon.ps1",
+    "ribbon": "node scripts/gen-ribbon.js",
+    "build:exe2": "node scripts/build-exe.js",
+    "build:admin": "node scripts/build-admin-exe.js",
+    "server": "node server/server.js",
+    "uninstall": "node scripts/install.js --remove"
+  },
+  "devDependencies": {
+    "@kingsoft/wpsjs": "^1.0.17"
+  }
+}

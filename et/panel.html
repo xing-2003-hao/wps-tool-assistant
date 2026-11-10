@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>工具助手</title>
+  <link rel="stylesheet" href="./panel.css" />
+</head>
+<body>
+  <div class="wrap">
+    <!-- 独立窗口（PDF / 无文档）提示：WPS PDF 组件不加载 JS 加载项，PDF 里没有面板，改从这里用 -->
+    <div id="standalone-tip" class="standalone-tip hidden">
+      <div class="sa-head">独立窗口模式</div>
+      <div class="sa-body">PDF、图片工具可以直接用；润色 / 翻译 / 总结这类文字动作会读取剪贴板——在 PDF 里选中文字按 Ctrl+C，再点动作即可。</div>
+      <div class="sa-acts">
+        <button id="btn-clip" type="button">读取剪贴板</button>
+        <button id="btn-tip-close" type="button">知道了</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button data-tab="tools" class="active">工具</button>
+      <button data-tab="func">功能</button>
+      <button data-tab="tpl">模板</button>
+      <button data-tab="kb">知识库</button>
+      <button data-tab="cfg">设置</button>
+    </div>
+
+    <!-- 工具中心 -->
+    <div id="tab-tools" class="tab active">
+      <div class="tool-banner">
+        <h2>文档工具</h2>
+        <p>离线可用 · 本地运行 · 文件不外传</p>
+      </div>
+      <div id="toolgrid"></div>
+    </div>
+
+    <!-- 功能页 -->
+    <div id="tab-func" class="tab">
+      <div id="cmd-row" class="hidden">
+        <input id="cmd-input" type="text" placeholder="指令：改成红色字体 / 全文改成宋体小四" />
+        <button id="cmd-run">执行</button>
+      </div>
+      <div id="input-row" class="hidden">
+        <input id="user-input" type="text" placeholder="" />
+        <button id="btn-input">生成</button>
+      </div>
+      <div id="actions"></div>
+      <div id="sel-hint" class="sel-hint"></div>
+      <div id="status" class="status"></div>
+      <div id="result-wrap" class="hidden">
+        <div class="res-head">
+          <span>结果（流式生成中会实时刷新）</span>
+          <span>
+            <button id="btn-copy">复制</button>
+            <button id="btn-apply">应用</button>
+          </span>
+        </div>
+        <textarea id="result" rows="10"></textarea>
+      </div>
+    </div>
+
+    <!-- 模板中心 -->
+    <div id="tab-tpl" class="tab">
+      <div class="tpl-bar">
+        <input id="tpl-search" type="text" placeholder="搜索模板名称" />
+        <button id="tpl-refresh">刷新</button>
+      </div>
+      <div id="tpl-grid"><div class="tpl-empty">加载中…</div></div>
+      <div id="tpl-status" class="status"></div>
+      <p class="tip">模板从服务器实时拉取，订阅期内新增的模板会自动出现在这里；点「生成文档」会在 WPS 文字里新建一份排好版的文档。</p>
+    </div>
+
+    <!-- 知识库页 -->
+    <div id="tab-kb" class="tab">
+      <label class="kb-toggle-row">
+        <input id="kb-toggle" type="checkbox" /> 启用知识库检索（对话前自动注入相关片段）
+      </label>
+      <label>Embedding 服务地址（OpenAI 兼容 /v1）
+        <input id="kb-baseurl" type="text" placeholder="http://localhost:11434/v1" />
+      </label>
+      <label>Embedding 模型
+        <input id="kb-model" type="text" placeholder="nomic-embed-text" />
+      </label>
+      <label>召回条数 top-k
+        <input id="kb-topk" type="number" min="1" max="10" value="3" />
+      </label>
+      <label>文档标题（可选）
+        <input id="kb-title" type="text" placeholder="如：产品手册第三章" />
+      </label>
+      <label>粘贴文档内容入库
+        <textarea id="kb-text" rows="6" placeholder="粘贴任意长度的文本，会自动按段落切块并向量化…"></textarea>
+      </label>
+      <div class="cfg-btns">
+        <button id="kb-add" class="primary">添加到知识库</button>
+        <button id="kb-clear">清空知识库</button>
+        <button id="kb-save">保存设置</button>
+      </div>
+      <div id="kb-status" class="status"></div>
+      <p class="tip">向量存储在浏览器 localStorage（上限约 300 片段），适合个人轻量知识库；大量文档建议后续换本地向量库。Embedding 模型：Ollama 执行 ollama pull nomic-embed-text 即可。</p>
+    </div>
+
+    <!-- 设置页 -->
+    <div id="tab-cfg" class="tab">
+      <label>预设
+        <select id="cfg-preset"></select>
+      </label>
+      <label>服务地址（OpenAI 兼容 /v1）
+        <input id="cfg-baseurl" type="text" placeholder="http://localhost:11434/v1" />
+      </label>
+      <label>API Key（本地模型可留空）
+        <input id="cfg-apikey" type="password" placeholder="sk-..." />
+      </label>
+      <label>模型名称
+        <input id="cfg-model" type="text" placeholder="qwen2.5:7b" />
+      </label>
+      <label>温度（0~1）
+        <input id="cfg-temp" type="number" min="0" max="1" step="0.1" value="0.7" />
+      </label>
+      <div class="cfg-btns">
+        <button id="btn-save" class="primary">保存</button>
+        <button id="btn-test">测试连接</button>
+      </div>
+      <div id="cfg-status" class="status"></div>
+      <p class="tip">本地 Ollama 若跨域失败，启动时设置环境变量 OLLAMA_ORIGINS=*；vLLM 用 --allowed-origins 放行。</p>
+
+      <!-- 卡密激活（AI 功能） -->
+      <hr style="border:none;border-top:1px solid var(--border,#ddd);margin:14px 0;" />
+      <div class="sa-head" style="font-weight:500;margin-bottom:8px;">卡密激活（AI 功能）</div>
+      <div id="lic-state" class="status" style="margin-bottom:8px;"></div>
+      <label>用户名（客服识别用，可随时改）
+        <input id="lic-name" type="text" placeholder="例如：张三 / 财务小王" maxlength="32" />
+      </label>
+      <label>激活服务器地址（不填则不启用激活）
+        <input id="lic-api" type="text" placeholder="https://your-server.com" />
+      </label>
+      <label>卡密
+        <input id="lic-code" type="text" placeholder="WTA-XXXX-XXXX-XXXX" />
+      </label>
+      <div class="cfg-btns">
+        <button id="lic-activate" class="primary">激活</button>
+        <button id="lic-refresh">刷新状态</button>
+      </div>
+      <div id="lic-status" class="status"></div>
+      <p class="tip">离线工具（PDF / 图片 / 表格）免费使用，无需激活；AI 功能（润色 / 续写 / 知识库问答等）需要卡密。在「设置」页填了自己的 API Key 时，AI 功能同样可用。</p>
+    </div>
+  </div>
+  <script src="./tools.js"></script>
+  <script src="./docops.js"></script>
+  <script src="./rag.js"></script>
+  <script src="./vendor/pdf-lib.min.js"></script>
+  <script src="./toolui.js"></script>
+  <script src="./pdftext.js"></script>
+  <script src="./ooxml.js"></script>
+  <script src="./imagetools.js"></script>
+  <script src="./pdftools.js"></script>
+  <script src="./pdfconvert.js"></script>
+  <script src="./docgen.js"></script>
+  <script src="./webtools.js"></script>
+  <script src="./officetools.js"></script>
+  <script src="./license.js"></script>
+  <script src="./templates.js"></script>
+  <script src="./panel.js"></script>
+</body>
+</html>

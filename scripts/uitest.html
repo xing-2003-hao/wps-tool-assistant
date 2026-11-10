@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>工具链路自检</title>
+<style>body{font-family:Consolas,"Microsoft YaHei";font-size:12px} .ok{color:#1e8e3e} .bad{color:#c0392b}</style>
+</head>
+<body>
+<div id="log"></div>
+<script src="./vendor/pdf-lib.min.js"></script>
+<script src="./toolui.js"></script>
+<script src="./imagetools.js"></script>
+<script src="./pdftools.js"></script>
+<script>
+var IMG = 'C:\\Windows\\Web\\Wallpaper\\Spotlight\\img14.jpg';
+var saved = [];
+var logEl = document.getElementById('log');
+function log(s, ok) {
+  var d = document.createElement('div');
+  d.className = ok ? 'ok' : 'bad';
+  d.textContent = s;
+  logEl.appendChild(d);
+  console.log('[TEST] ' + s);
+}
+
+// 打桩：文件选择 / 读文件 / 保存
+TK.pickFiles = function () { return Promise.resolve([IMG, IMG]); };
+TK.readFile = function (p) { return fetch('/__file?p=' + encodeURIComponent(p)).then(function (r) { return r.blob(); }); };
+TK.save = function (blob, name) {
+  saved.push({ name: name, size: blob.size, type: blob.type });
+  return Promise.resolve('stub://' + name);
+};
+TK.resultBox = function (paths, note) { log('RESULTBOX ' + note, true); };
+
+function runTool(fn, setter) {
+  var p = new Promise(function (resolve) {
+    var t = setInterval(function () {
+      var btn = document.querySelector('.tk-run');
+      if (btn && btn.textContent && btn.textContent !== '处理中…' && document.querySelector('.tk-mask.show')) {
+        clearInterval(t);
+        if (setter) setter();
+        btn.click();
+        resolve();
+      }
+    }, 120);
+  });
+  fn();
+  return p;
+}
+
+function waitIdle() {
+  return new Promise(function (resolve) {
+    var t = setInterval(function () {
+      var btn = document.querySelector('.tk-run');
+      if (btn && !btn.disabled) { clearInterval(t); resolve(); }
+    }, 150);
+  });
+}
+
+function step1() {
+  return runTool(window.WTA_IMAGE['img-to-pdf']).then(waitIdle).then(function () {
+    var ok = saved.some(function (s) { return /\.pdf$/.test(s.name) && s.size > 1000; });
+    log('img-to-pdf → ' + JSON.stringify(saved[saved.length - 1] || null), ok);
+    if (!ok) throw new Error('图片转 PDF 未产出有效 PDF');
+  });
+}
+
+function step2() {
+  saved = [];
+  return runTool(window.WTA_IMAGE['img-watermark-add']).then(waitIdle).then(function () {
+    var ok = saved.length === 2 && saved.every(function (s) { return /水印\.jpg$/.test(s.name) && s.size > 1000; });
+    log('img-watermark-add → ' + saved.length + ' 个文件 ' + (saved[0] ? saved[0].size + 'B' : ''), ok);
+    if (!ok) throw new Error('加水印未产出');
+  });
+}
+
+function step3() {
+  saved = [];
+  // 切图模式：一张图切成 9 份
+  TK.pickFiles = function () { return Promise.resolve([IMG]); };
+  return runTool(window.WTA_IMAGE['img-grid'], function () {
+    document.getElementById('gd-mode').value = 'split';
+    document.getElementById('gd-cols').value = '3';
+  }).then(waitIdle).then(function () {
+    var ok = saved.length === 9 && saved.every(function (s) { return s.size > 1000; });
+    log('img-grid split → ' + saved.length + ' 块', ok);
+    if (!ok) throw new Error('九宫格切图数量不对：' + saved.length);
+  });
+}
+
+function step4() {
+  saved = [];
+  TK.pickFiles = function () { return Promise.resolve([IMG, IMG]); };
+  return runTool(window.WTA_IMAGE['img-grid'], function () {
+    document.getElementById('gd-mode').value = 'join';
+    document.getElementById('gd-cols').value = '2';
+  }).then(waitIdle).then(function () {
+    var ok = saved.length === 1 && /九宫格_/.test(saved[0].name) && saved[0].size > 5000;
+    log('img-grid join → ' + (saved[0] ? saved[0].name + ' ' + saved[0].size + 'B' : 'none'), ok);
+    if (!ok) throw new Error('拼贴未产出');
+  });
+}
+
+step1().then(step2).then(step3).then(step4).then(function () {
+  log('ALL PASS', true);
+  document.title = 'DONE-PASS';
+}).catch(function (e) {
+  log('FAIL: ' + (e && e.message), false);
+  document.title = 'DONE-FAIL';
+});
+</script>
+</body>
+</html>

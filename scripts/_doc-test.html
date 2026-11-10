@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>图形工具自测</title>
+<style>body{font-family:Consolas,"Microsoft YaHei";font-size:12px}.ok{color:#1e8e3e}.bad{color:#c0392b}</style>
+</head><body><div id="log"></div>
+<script src="/toolui.js"></script>
+<script src="/docgen.js"></script>
+<script>
+var logEl = document.getElementById('log');
+function log(s, ok){var d=document.createElement('div');d.className=ok?'ok':'bad';d.textContent=s;logEl.appendChild(d);}
+var saved = [];
+TK.save = function(blob, name){ saved.push(name + ':' + blob.size); return Promise.resolve('stub://'+name); };
+TK.msg = function(){};
+TK.resultBox = function(paths, note){ log('resultBox ' + (paths||[]).length + ' ' + (note||''), true); };
+
+var SAMPLE = '总经理\n  技术部\n    前端组\n    后端组\n    测试组\n  市场部\n    华东区\n      上海\n      杭州\n  财务部';
+
+try {
+  var tree = WTA_DOC_INTERNAL.parseTree(SAMPLE);
+  log('parseTree root=' + tree.text + ' children=' + tree.children.length, tree.children.length === 3);
+  var cv1 = WTA_DOC_INTERNAL.renderOrg(tree, {title:'组织架构'});
+  log('org canvas ' + cv1.width + 'x' + cv1.height, cv1.width > 300 && cv1.height > 200);
+  var cv2 = WTA_DOC_INTERNAL.renderMind(tree, {title:'导图'});
+  log('mind canvas ' + cv2.width + 'x' + cv2.height, cv2.width > 300);
+  var cvs = WTA_DOC_INTERNAL.renderGrid('春眠不觉晓处处闻啼鸟夜来风雨声花落知多少'.repeat(30), {cols:20, style:'grid', title:'练字'});
+  log('grid pages ' + cvs.length + ' first ' + cvs[0].width + 'x' + cvs[0].height, cvs.length >= 1);
+  var line = WTA_DOC_INTERNAL.renderGrid('横线稿纸测试', {cols:20, style:'line'});
+  log('line grid ok ' + line[0].width, true);
+  // 路径格式
+  var t2 = WTA_DOC_INTERNAL.parseTree('公司 > 技术部 > 前端组\n公司 > 市场部');
+  log('path format root=' + t2.text + ' kids=' + t2.children.length, t2.children.length === 2);
+  // 编号格式
+  var t3 = WTA_DOC_INTERNAL.parseTree('1. 总则\n1.1 范围\n1.2 术语\n2. 流程');
+  log('number format root=' + t3.text + ' kids=' + t3.children.length, t3.children.length === 2);
+  // 两列格式
+  var t4 = WTA_DOC_INTERNAL.parseTree('总经理\t技术部\n总经理\t市场部');
+  log('table format root=' + t4.text + ' kids=' + t4.children.length, t4.children.length === 2);
+  // PNG 导出
+  TK.canvasToBlob(cv1, 'image/png').then(function(b){ log('org png bytes=' + b.size, b.size > 20000); });
+} catch (e) { log('EXCEPTION ' + e.message, false); }
+</script></body></html>

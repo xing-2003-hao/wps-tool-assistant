@@ -1,0 +1,1 @@
+{"name":"wta-license-server","version":"1.0.0","private":true,"description":"WPS工具助手卡密/用户服务端","dependencies":{"mysql2":"^3.24.6"}}

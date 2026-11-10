@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>反问拦截 / 不自动写文档 回归测试</title>
+<style>body{font-family:Consolas,monospace;font-size:13px}pre{white-space:pre-wrap}</style></head>
+<body>
+<iframe id="fr" src="/panel.html" style="width:380px;height:900px;border:1px solid #ddd"></iframe>
+<pre id="log"></pre>
+<script>
+var logEl = document.getElementById('log');
+function log(s) { logEl.textContent += s + '\n'; }
+function ok(cond, msg) { log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failed = true; }
+var failed = false;
+
+var inserted = [];
+var confirmCalls = [];
+
+// 父窗口模拟 WPS 注入
+window.wps = { WpsApplication: function () { return window.__app; } };
+window.__app = {
+  ActiveDocument: { Name: '测试文档.docx' },
+  Selection: {
+    Type: 2,
+    Text: '用于测试的原文段落。',
+    InsertAfter: function (t) { inserted.push(t); },
+    Collapse: function () { }
+  }
+};
+
+var ctx = null;
+
+function fakeModel(reply) {
+  ctx.w.WTA_LLM.chatStream = function (messages, onDelta) {
+    try { onDelta(reply, reply); } catch (e) { }
+    return Promise.resolve(reply);
+  };
+}
+
+function clickAction(d, keyLabel) {
+  var btns = [].slice.call(d.querySelectorAll('#actions button'));
+  var btn = btns.filter(function (b) { return b.textContent.indexOf(keyLabel) >= 0; })[0];
+  if (!btn) { log('FAIL 找不到按钮 ' + keyLabel); return false; }
+  btn.onclick();
+  return true;
+}
+
+document.getElementById('fr').onload = function () {
+  var w = this.contentWindow, d = this.contentDocument;
+  ctx = { w: w, d: d };
+  // 面板里的 confirm 一律拦截并计数：本轮的目标就是「生成后完全不弹窗」
+  w.confirm = function (msg) { confirmCalls.push(msg); return true; };
+
+  setTimeout(function () {
+    try {
+      log('host: ' + w.WTA_HOST().type);
+
+      // ---- 场景 1：模型回反问（截图里的原句）----
+      inserted.length = 0; confirmCalls.length = 0;
+      fakeModel('您提供的这段话中没有明确标注需要删除的部分。请告诉我具体要删除哪一段（或提供原文中需要删除的具体字句），我再帮您处理。');
+      clickAction(d, '续写');
+      setTimeout(function () {
+        var st = d.getElementById('status').textContent;
+        log('场景1 status: ' + st);
+        ok(/反问/.test(st), '反问被识别（状态提示是「反问」）');
+        ok(inserted.length === 0, '反问没有被写进文档');
+        ok(confirmCalls.length === 0, '反问没有弹确认框（confirm 调用 ' + confirmCalls.length + ' 次）');
+
+        // ---- 场景 2：正常结果 —— 只提示，不自动写 ----
+        inserted.length = 0; confirmCalls.length = 0;
+        fakeModel('这是续写生成的结果文本。');
+        clickAction(d, '续写');
+        setTimeout(function () {
+          var st2 = d.getElementById('status').textContent;
+          log('场景2 status: ' + st2);
+          ok(/生成完成/.test(st2), '生成完成时提示「点应用」');
+          ok(inserted.length === 0, '生成后不自动插入（等用户点应用）');
+          ok(confirmCalls.length === 0, '生成后不弹确认框（confirm 调用 ' + confirmCalls.length + ' 次）');
+          ok(d.getElementById('btn-apply').className.indexOf('ready') >= 0, '「应用」按钮被点亮');
+
+          // ---- 场景 3：点应用才写入 ----
+          d.getElementById('btn-apply').onclick();
+          log('场景3 应用后 status: ' + d.getElementById('status').textContent);
+          ok(inserted.length === 1 && inserted[0].indexOf('续写生成的结果') >= 0, '点应用后写入文档');
+          ok(confirmCalls.length === 0, '点应用也不弹窗');
+
+          // ---- 场景 4：反问文本手动点应用 —— 也要拦住 ----
+          inserted.length = 0;
+          d.getElementById('result').value = '请提供原文中需要删除的具体字句，我再帮您处理。';
+          d.getElementById('btn-apply').onclick();
+          log('场景4 status: ' + d.getElementById('status').textContent);
+          ok(inserted.length === 0, '反问文本手动点应用也不写入');
+
+          log(failed ? '=== SOME FAILED ===' : '=== ALL PASS ===');
+        }, 500);
+      }, 500);
+    } catch (e) { log('TEST ERROR ' + e.message); }
+  }, 1200);
+};
+</script>
+</body></html>

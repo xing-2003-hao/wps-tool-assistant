@@ -1,0 +1,77 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>删除指令回归测试</title>
+<style>body{font-family:Consolas,monospace;font-size:13px}pre{white-space:pre-wrap}</style></head>
+<body>
+<iframe id="fr" src="/panel.html" style="width:400px;height:900px;border:1px solid #ddd"></iframe>
+<pre id="log"></pre>
+<script>
+var logEl = document.getElementById('log');
+function log(s){ logEl.textContent += s + '\n'; }
+
+// 假 WPS 宿主：文档里有一段被选中的话
+var deleted = [], llmCalls = 0;
+var docText = '个人优势';
+window.wps = { WpsApplication: function () { return window.__app; } };
+window.__app = {
+  ActiveDocument: {
+    Name: '简历.docx',
+    Range: function () { return { Select: function () {} }; },
+    Content: {
+      Find: { ClearFormatting: function(){}, Execute: function(){ return false; } },
+      Delete: function () { deleted.push('doc'); }
+    },
+    Paragraphs: { Count: 1, Item: function () { return { Range: { Text: docText + '\r', Delete: function () { deleted.push('para'); } } }; } }
+  },
+  Selection: {
+    Type: 1,
+    Start: 100, End: 104,
+    Text: docText,
+    Delete: function () { deleted.push('sel'); },
+    Paragraphs: { Item: function () { return { Range: { Text: docText + '\r', Delete: function () { deleted.push('para'); } } }; } }
+  }
+};
+
+document.getElementById('fr').onload = function () {
+  var w = this.contentWindow, d = this.contentDocument;
+  setTimeout(function () {
+    try {
+      log('host: ' + w.WTA_HOST().type);
+      // 假模型：只要被调用就记一笔（删除指令不该走到这里）
+      w.WTA_LLM.chatStream = function () { llmCalls++; return Promise.resolve('模型不该被调用'); };
+
+      var input = d.getElementById('cmd-input');
+      var run = d.getElementById('cmd-run');
+      if (!input || !run) { log('FAIL 指令框不存在'); return; }
+
+      input.value = '删除这段话';
+      run.onclick();
+
+      setTimeout(function () {
+        log('status: ' + d.getElementById('status').textContent);
+        log('删除记录: ' + JSON.stringify(deleted));
+        log('模型调用次数: ' + llmCalls);
+        var ok = deleted.length > 0 && llmCalls === 0 && /已删除/.test(d.getElementById('status').textContent);
+        log(ok ? 'PASS 删除在本机执行，没走模型' : 'FAIL 删除未按预期执行');
+
+        // 第二种：输入框 + 生成按钮（原来的坑：直接发给模型）
+        deleted.length = 0; llmCalls = 0;
+        try {
+          var row = d.getElementById('input-row');
+          var box = d.getElementById('user-input');
+          var bin = d.getElementById('btn-input');
+          log('元素检查 row/box/btn: ' + !!row + '/' + !!box + '/' + !!bin + ' onclick:' + !!(bin && bin.onclick));
+          if (row) row.classList.remove('hidden');
+          if (box) box.value = '删除本段';
+          if (bin && bin.onclick) bin.onclick();
+        } catch (e2) { log('第二段异常: ' + e2.message); }
+        setTimeout(function () {
+          log('（生成按钮路径）status: ' + d.getElementById('status').textContent);
+          log('删除记录: ' + JSON.stringify(deleted) + ' 模型调用: ' + llmCalls);
+          log(deleted.length > 0 && llmCalls === 0 ? 'PASS 生成按钮也走本地删除' : 'FAIL 生成按钮仍发给模型');
+          log('=== DONE ===');
+        }, 400);
+      }, 300);
+    } catch (e) { log('TEST ERROR ' + e.message); }
+  }, 1200);
+};
+</script>
+</body></html>

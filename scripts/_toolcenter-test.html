@@ -1,0 +1,143 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>工具中心批量点检</title>
+<style>body{font-family:Consolas,monospace;font-size:13px}pre{white-space:pre-wrap}</style></head>
+<body>
+<iframe id="fr" src="/panel.html" style="width:380px;height:900px;border:1px solid #ddd"></iframe>
+<pre id="log"></pre>
+<script>
+var logEl = document.getElementById('log');
+function log(s) { logEl.textContent += s + '\n'; }
+
+// ---------- 假 WPS 宿主 ----------
+var insertedPics = [], createdDocs = [];
+function mkShape() { return { Width: 800, LockAspectRatio: 0 }; }
+function mkInlineShapes() { return { AddPicture: function (p) { insertedPics.push(p); return mkShape(); } }; }
+window.wps = { WpsApplication: function () { return window.__app; } };
+window.__app = {
+  ActiveDocument: {
+    Name: '测试.docx',
+    Content: {
+      Find: {
+        ClearFormatting: function () { }, Replacement: { ClearFormatting: function () { } },
+        Execute: function () { return true; }
+      },
+      InlineShapes: mkInlineShapes()
+    },
+    InlineShapes: mkInlineShapes(),
+    Shapes: { AddPicture: function (p) { insertedPics.push(p); return mkShape(); } },
+    Paragraphs: { Item: function () { return { Range: { Text: '' } }; } }
+  },
+  Selection: {
+    Type: 2, Text: '',
+    InlineShapes: mkInlineShapes(),
+    InsertAfter: function () { }, Collapse: function () { }
+  },
+  Documents: { Add: function () { var d = { Name: '新文档' + createdDocs.length, Content: window.__app.ActiveDocument.Content, Paragraphs: window.__app.ActiveDocument.Paragraphs }; createdDocs.push(d); return d; } }
+};
+
+var KEYS = ['word-replace', 'word-format', 'sheet-merge', 'sheet-split', 'doc-outline', 'doc-mindmap',
+  'doc-seatcard', 'doc-thousand', 'doc-minutes', 'doc-quotes', 'doc-hotnews', 'doc-writer', 'doc-toolbox', 'doc-video-nowm'];
+
+var results = {};
+
+function snap(d) { return d.getElementById('status').textContent; }
+
+function runNext(w, d, i) {
+  if (i >= KEYS.length) { finish(w, d); return; }
+  var key = KEYS[i];
+  results[key] = { status1: '', status2: '', modal: null, err: '' };
+  try {
+    // 重置环境
+    insertedPics.length = 0; createdDocs.length = 0;
+    d.getElementById('user-input').value = '';
+    // 点卡片
+    var card = d.querySelector('.tool-card[data-key="' + key + '"]');
+    if (!card) { results[key].err = '找不到卡片'; report(w, d, i); return; }
+    card.onclick();
+    results[key].status1 = snap(d);
+
+    // 若弹出了 TK.modal：填样例数据并点「运行」
+    var modalBox = d.querySelector('.tk-modal, .tk-mask, [class*="tk-modal"]');
+    if (modalBox && modalBox.offsetHeight !== undefined && d.querySelector('.tk-modal [id], .tk-body [id], #ol-text, #sc-names, #vn-text, #th-text')) {
+      results[key].modal = 'opened';
+      var fills = {
+        'ol-text': '总经理\n  技术部\n    前端组', 'ol-title': '测试架构',
+        'mm-text': '中心主题\n  分支一\n  分支二', 'mm-title': '测试导图',
+        'sc-names': '张三\n李四', 'sc-size': '72', 'sc-font': '微软雅黑',
+        'th-text': '测试文本内容测试文本内容测试文本内容', 'th-title': '测试',
+        'vn-text': '复制打开抖音 https://v.douyin.com/abc123/',
+        'vn-api': ''
+      };
+      Object.keys(fills).forEach(function (id) {
+        var el = d.getElementById(id);
+        if (el) el.value = fills[id];
+      });
+      // 找运行按钮
+      var runBtn = null;
+      var btns = d.querySelectorAll('.tk-modal button, .tk-body button, [class*="tk"] button');
+      for (var b = 0; b < btns.length; b++) {
+        var t = btns[b].textContent || '';
+        if (/生成|运行|解析|开始/.test(t)) { runBtn = btns[b]; break; }
+      }
+      if (runBtn) {
+        runBtn.click();
+        setTimeout(function () {
+          results[key].status2 = snap(d);
+          results[key].pics = insertedPics.length;
+          results[key].docs = createdDocs.length;
+          report(w, d, i);
+        }, 900);
+        return;
+      } else {
+        results[key].modal = 'opened-but-no-run-btn';
+      }
+    }
+    report(w, d, i);
+  } catch (e) {
+    results[key].err = e.message;
+    report(w, d, i);
+  }
+}
+
+function report(w, d, i) {
+  var key = KEYS[i];
+  log('[' + key + '] 一次点击: ' + results[key].status1
+    + (results[key].modal ? ' | modal: ' + results[key].modal : '')
+    + (results[key].status2 ? ' | 运行后: ' + results[key].status2 : '')
+    + (results[key].pics !== undefined ? ' | 插图:' + results[key].pics + ' 建文档:' + results[key].docs : '')
+    + (results[key].err ? ' | ERR: ' + results[key].err : ''));
+  runNext(w, d, i + 1);
+}
+
+function finish(w, d) {
+  log('--- 汇总 ---');
+  // word-replace 的 prompt 问题
+  log('prompt 被 WPS webview 拦截时 word-replace 状态: ' + (results['word-replace'].status1 || '(空)'));
+  log('=== DONE ===');
+}
+
+document.getElementById('fr').onload = function () {
+  var w = this.contentWindow, d = this.contentDocument;
+  setTimeout(function () {
+    try {
+      log('host: ' + w.WTA_HOST().type);
+      // 假模型
+      w.WTA_LLM.chatStream = function (messages, onDelta) {
+        var full = '测试模型输出。';
+        try { onDelta(full, full); } catch (e) { }
+        return Promise.resolve(full);
+      };
+      // 拦 prompt：WPS webview 里 prompt 基本不可用（直接返回 null）
+      w.prompt = function () { return null; };
+      // TK.save 改为假成功（测试环境 39001 没有 /save 端点）
+      if (w.TK) {
+        w.TK.save = function (blob, name) {
+          return Promise.resolve('C:\\fake\\' + (name || 'out.png'));
+        };
+        w.TK.resultBox = function () { };
+      }
+      runNext(w, d, 0);
+    } catch (e) { log('TEST ERROR ' + e.message); }
+  }, 1400);
+};
+</script>
+</body></html>

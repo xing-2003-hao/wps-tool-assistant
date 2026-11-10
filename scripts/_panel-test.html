@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>面板冒烟测试</title></head>
+<body>
+<iframe id="fr" src="/panel.html" style="width:380px;height:900px;border:1px solid #ddd"></iframe>
+<pre id="log"></pre>
+<script>
+var logEl = document.getElementById('log');
+function log(s){ logEl.textContent += s + '\n'; }
+document.getElementById('fr').onload = function () {
+  var w = this.contentWindow, d = this.contentDocument;
+  setTimeout(function () {
+    try {
+      log('tools.js: ' + (w.WTA_TOOLS ? w.WTA_TOOLS.reduce(function(n,c){return n+c.items.length;},0) + ' 个工具' : 'MISSING'));
+      log('cards: ' + d.querySelectorAll('.tool-card').length);
+      log('ribbon map: ' + Object.keys(w.WTA_RIBBON_MAP || {}).length);
+      log('modules: ' + ['WTA_IMAGE','WTA_PDF','WTA_PDFX','WTA_DOC','WTA_WEB','WTA_OFFICE','PDFTEXT','OOXML','RAG'].filter(function(k){return !!w[k];}).join(','));
+      var status = d.getElementById('status');
+      log('status: ' + (status ? status.textContent : 'n/a'));
+      // 逐个打开新工具弹窗，确认能渲染
+      var keys = ['pdf-to-word','pdf-to-excel','pdf-to-ppt','pdf-to-md','pdf-watermark-remove','doc-outline','doc-mindmap','doc-thousand','doc-video-nowm','img-watermark-remove'];
+      keys.forEach(function (k) {
+        var mod = w.WTA_PDFX[k] || w.WTA_DOC[k] || w.WTA_WEB[k] || w.WTA_IMAGE[k];
+        var before = d.querySelectorAll('.tk-mask.show').length;
+        try {
+          mod();
+          var mask = d.querySelector('.tk-mask.show');
+          var title = mask ? mask.querySelector('.tk-title').textContent : '(no modal)';
+          var rows = mask ? mask.querySelectorAll('.tk-body .tk-row').length : 0;
+          log((before ? 'reuse ' : 'open  ') + k + ' → ' + title + ' rows=' + rows);
+        } catch (e) { log('FAIL ' + k + ' ' + e.message); }
+      });
+      // AI 卡片点击 → 应切到功能页并提示输入
+      var c1 = d.querySelector('[data-key=\"doc-minutes\"]');
+      if (c1) { c1.onclick(); log('ai card: ' + d.getElementById('status').textContent + ' | tab=' + (d.querySelector('.tabs button.active')||{}).textContent); }
+      // ready 卡片点击 → 应弹出对应工具
+      var c2 = d.querySelector('[data-key=\"pdf-to-word\"]');
+      if (c2) { c2.onclick(); log('ready card modal: ' + (d.querySelector('.tk-mask.show .tk-title') ? d.querySelector('.tk-mask.show .tk-title').textContent : 'NONE')); }
+      log('script errors: ' + (d.getElementById('status') && /脚本错误/.test(d.getElementById('status').textContent) ? 'YES' : 'no'));
+    } catch (e) { log('TEST ERROR ' + e.message); }
+    log('=== DONE ===');
+  }, 2500);
+};
+</script>
+</body></html>
