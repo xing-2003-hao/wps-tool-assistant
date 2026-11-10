@@ -92,9 +92,9 @@
 
   <div class="card">
     <div class="row" style="justify-content:space-between;">
-      <b style="font-size:13px;">用户列表（谁装了软件自动进这里）</b>
+      <b style="font-size:13px;">用户档案（安装/订阅/消费一览）</b>
       <div class="row">
-        <input id="qu" type="text" size="20" placeholder="搜索用户ID/用户名" oninput="renderUsers()" />
+        <input id="qu" type="text" size="20" placeholder="搜索用户ID/用户名/卡密" oninput="renderUsers()" />
         <button class="ghost" onclick="refreshUsers()">刷新</button>
       </div>
     </div>
@@ -119,6 +119,7 @@
     </div>
     <div class="msg" id="grantMsg"></div>
     <div class="tip">用户ID 是系统自动分配的编号（U000001 起）。点用户列表里的「下发」会自动填入；用户名由用户自己在面板里设置，你也可以点用户名直接改。</div>
+    <div class="tip">⚠️ 权限是<b>按电脑下发</b>的：每个用户ID对应一台电脑。给新电脑开通时，先让对方安装并在 WPS 里打开一次工具助手面板（用户列表就会出现这台电脑），再点那一行的「下发」。下发后对方<b>重开面板或稍等几分钟</b>即自动生效，无需卡密。</div>
   </div>
 
   <div class="card">
@@ -201,7 +202,7 @@
     <div class="tip">给合伙人 / 客服开一个「普通管理」就够：能发卡、查用户、管模板，但看不到也不动得了账号。改别人的密码点「重置密码」。</div>
   </div>
 
-  <div class="tip" style="text-align:center;color:#b0aea7;margin:6px 0 2px;">管理台 v2026-11-09.1650 · 卡密/用户/收入/模板/日志/多管理员 · 企业版 = 管理员授权</div>
+  <div class="tip" style="text-align:center;color:#b0aea7;margin:6px 0 2px;">管理台 v2026-11-09.1758 · 卡密/用户/收入/模板/日志/多管理员 · 企业版 = 管理员授权</div>
 </div>
 
 <!-- 登录层：远程 / 非本机打开时显示 -->
@@ -247,6 +248,8 @@ function getKey() { return $('key').value.trim() || localStorage.getItem('wta.ad
 var TOKKEY = 'wta.admin.token';
 var ME = null;
 function getToken() { return localStorage.getItem(TOKKEY) || ''; }
+/* 两种登录方式都算已认证：账号密码登录（token）或本机密钥 */
+function hasAuth() { return !!getToken() || !!getKey(); }
 
 function authHeaders() {
   var h = { 'Content-Type': 'application/json' };
@@ -310,7 +313,7 @@ function verifyIdentity() {
     .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
     .then(function (r) {
       if (r.status === 200 && r.j.username) { ME = { username: r.j.username, role: r.j.role, local: !!r.j.local }; return true; }
-      if (r.status === 401) localStorage.removeItem(TOKKEY);
+      if (r.status === 401) { localStorage.removeItem(TOKKEY); localStorage.removeItem('wta.admin.key'); $('key').value = ''; }
       return false;
     })
     .catch(function () { return false; });
@@ -425,8 +428,7 @@ function copyLast() {
 
 var cards = [];
 function refresh() {
-  var k = getKey();
-  if (!k) { $('keyState').textContent = '未填密钥'; $('keyState').className = 'stat err'; $('tbl').innerHTML = '请先填管理员密钥'; return; }
+  if (!hasAuth()) { $('keyState').textContent = '未登录'; $('keyState').className = 'stat err'; $('tbl').innerHTML = '请先用账号登录或填管理员密钥'; return; }
   $('keyState').textContent = '加载中…';
   $('keyState').className = 'stat';
   api('/api/admin/keys', null, 'GET').then(function (r) {
@@ -524,7 +526,7 @@ function clearUnused() {
 
 /* ---------------- 经营概览 / 收入 / 日志 ---------------- */
 function refreshStats() {
-  if (!getKey()) return;
+  if (!hasAuth()) return;
   api('/api/admin/stats', null, 'GET').then(function (r) {
     var ov = r.j.overview, rv = r.j.revenue;
     if (!ov && !rv) {
@@ -551,7 +553,7 @@ function refreshStats() {
 
 var orders = [];
 function refreshOrders() {
-  if (!getKey()) return;
+  if (!hasAuth()) return;
   api('/api/admin/orders?limit=60', null, 'GET').then(function (r) {
     orders = r.j.orders || [];
     renderOrders();
@@ -618,7 +620,7 @@ var EV_NAME = {
   admin_add: '新增管理员', admin_del: '删除管理员'
 };
 function refreshEvents() {
-  if (!getKey()) return;
+  if (!hasAuth()) return;
   $('etbl').innerHTML = '加载中…';
   api('/api/admin/events?limit=200', null, 'GET').then(function (r) {
     events = r.j.events || [];
@@ -683,7 +685,7 @@ function extendCard(code) {
 /* ---------------- 模板中心 ---------------- */
 var tpls = [];
 function refreshTpls() {
-  if (!getKey()) return;
+  if (!hasAuth()) return;
   api('/api/admin/templates', null, 'GET').then(function (r) {
     if (r.status === 503) { $('ttbl').innerHTML = '<div class="tip">MySQL 未连接，模板功能不可用</div>'; return; }
     if (r.status === 401) { $('ttbl').innerHTML = '<div class="tip">管理员密钥错误</div>'; return; }
@@ -771,8 +773,8 @@ function delTpl(id) {
 /* ---------------- 用户管理 ---------------- */
 var users = [];
 function refreshUsers() {
-  if (!getKey()) {
-    $('utbl').innerHTML = '<div class="tip">未填管理员密钥，无法加载用户。请在上方「管理员密钥」里填好并点「保存密钥」。</div>';
+  if (!hasAuth()) {
+    $('utbl').innerHTML = '<div class="tip">未登录。请先登录账号，或在上方「管理员密钥」里填好并点「保存密钥」。</div>';
     $('grantBox').style.display = 'none';
     return;
   }
@@ -809,13 +811,19 @@ function renderUsers() {
       || (u.name || '').toUpperCase().indexOf(q) >= 0
       || (u.licCode || '').toUpperCase().indexOf(q) >= 0;
   });
-  var h = '<table><tr><th>用户ID</th><th>用户名</th><th>订阅状态</th><th>卡密</th><th>首次安装</th><th>最近在线</th><th>操作</th></tr>';
+  var totalSpent = users.reduce(function (s, u) { return s + (u.spent || 0); }, 0);
+  var paying = users.filter(function (u) { return (u.spent || 0) > 0; }).length;
+  var h = '<table><tr><th>用户ID</th><th>用户名</th><th>订阅状态</th><th>累计消费</th><th>首次安装</th><th>最近在线</th><th>操作</th></tr>';
   list.forEach(function (u) {
     var isEnt = u.plan === 'enterprise' && u.planUntil > Date.now();
+    var consume = (u.spent || 0) > 0
+      ? '<b style="color:#1d7a3e;">' + money(u.spent) + '</b><span style="color:#8a8880;"> · ' + u.orderCnt + ' 单'
+        + (u.lastPaid ? '<br><span style="font-size:11px;color:#b0aea7;">最近 ' + fmt(u.lastPaid) + '</span>' : '') + '</span>'
+      : '<span style="color:#b0aea7;">未消费</span>';
     h += '<tr><td><code onclick="pickUser(\'' + jsq(u.uid) + '\')" title="点击填入下发框">' + esc(u.uid) + '</code></td>'
       + '<td><span style="cursor:pointer;border-bottom:1px dashed #bbb;" onclick="renameUser(\'' + jsq(u.uid) + '\',\'' + jsq(u.name) + '\')" title="点击修改用户名">' + esc(u.name) + '</span></td>'
-      + '<td>' + planTag(u) + '</td>'
-      + '<td>' + esc(u.licCode || '—') + '</td>'
+      + '<td>' + planTag(u) + (u.licCode ? '<br><code style="font-size:11px;">' + esc(u.licCode) + '</code>' : '') + '</td>'
+      + '<td>' + consume + '</td>'
       + '<td>' + fmt(u.firstSeen) + '</td><td>' + fmt(u.lastSeen) + '</td>'
       + '<td><button class="op ghost" onclick="pickUser(\'' + jsq(u.uid) + '\')">下发</button>'
       + (isEnt
@@ -823,8 +831,9 @@ function renderUsers() {
         : '<button class="op ghost" onclick="entGrant(\'' + jsq(u.uid) + '\',true)">授企业</button>')
       + '</td></tr>';
   });
-  $('utbl').innerHTML = h + '</table>' + (list.length ? '' : '<div class="tip">还没有用户。装了面板的电脑打开面板后会自动出现在这里。</div>');
-  showMsg('userMsg', '共 ' + users.length + ' 个用户，显示 ' + list.length + ' 个');
+  $('utbl').innerHTML = h + '</table>'
+    + '<div class="tip">共 ' + users.length + ' 个用户，显示 ' + list.length + ' 个；其中 ' + paying + ' 人付过款，合计 ' + money(totalSpent)
+    + '。用户名点一下可改；订阅状态下面是绑定中的卡密。</div>';
 }
 function pickUser(uid) {
   $('grantBox').style.display = 'block';
