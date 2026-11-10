@@ -287,6 +287,13 @@
   /* 启动时若已激活，静默校验一次（刷新 lastVerifyAt 支撑宽限） */
   if (cfg().token && serverConfigured()) verify();
   register();   // 无条件上报：下载即进库
+  /* 自动同步权限：管理台下发后，面板开着也能收到（每 5 分钟 + 切回面板时） */
+  setInterval(function () { register(); }, 5 * 60 * 1000);
+  try {
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) register();
+    });
+  } catch (e) { /* 环境不支持则跳过 */ }
 
   window.WTA_LICENSE = {
     state: state,
